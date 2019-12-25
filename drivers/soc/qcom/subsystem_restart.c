@@ -1077,6 +1077,21 @@ static void device_restart_work_hdlr(struct work_struct *work)
 							dev->desc->name);
 }
 
+#ifdef VENDOR_EDIT //yixue.ge add for modem subsystem crash
+int subsystem_restart_dev_level(struct subsys_device *dev,int restart_level)
+{
+	int rc = 0;
+	int restart_level_bak = dev->restart_level;
+	if(restart_level >= 0)
+		dev->restart_level = restart_level;
+
+	rc = subsystem_restart_dev(dev);
+
+	dev->restart_level = restart_level_bak;
+	return rc;
+}
+#endif
+
 int subsystem_restart_dev(struct subsys_device *dev)
 {
 	const char *name;
@@ -1629,6 +1644,16 @@ struct subsys_device *subsys_register(struct subsys_desc *desc)
 	subsys->dev.release = subsys_device_release;
 	subsys->notif_state = -1;
 	subsys->desc->sysmon_pid = -1;
+#ifdef VENDOR_EDIT
+	/*YiXue.Ge@PSW.BSP.Kernel.Driver,2017/05/15,
+	 * Add for init subsyst restart level as RESET_SUBSYS_COUPLED at mp build
+	 */
+	#ifndef CONFIG_OPPO_DAILY_BUILD
+		#ifndef CONFIG_OPPO_SPECIAL_BUILD
+		subsys->restart_level = RESET_SUBSYS_COUPLED;
+		#endif
+	#endif
+#endif
 	strlcpy(subsys->desc->fw_name, desc->name,
 			sizeof(subsys->desc->fw_name));
 

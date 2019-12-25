@@ -176,6 +176,7 @@ static void rpmh_tx_done(struct mbox_client *cl, void *msg, int r)
 			complete(compl);
 }
 
+extern s64 set_oom_count;
 /**
  * wait_for_tx_done: Wait forever until the response is received.
  *
@@ -191,6 +192,7 @@ static inline void wait_for_tx_done(struct rpmh_client *rc,
 	int ret;
 	int count = 4;
 	int skip = 0;
+	static s64 last_oom_count = 0;
 
 	do {
 		ret = wait_for_completion_timeout(compl, RPMH_TIMEOUT);
@@ -201,6 +203,9 @@ static inline void wait_for_tx_done(struct rpmh_client *rc,
 				addr, data);
 			return;
 		}
+		dev_err(rc->dev, "From last rpm timeout, lmkd run counter = %lld",
+		set_oom_count - last_oom_count);
+		last_oom_count = set_oom_count;
 		if (!count) {
 			if (skip++ % 100)
 				continue;

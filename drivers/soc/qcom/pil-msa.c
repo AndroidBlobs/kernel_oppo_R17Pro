@@ -797,13 +797,13 @@ err_invalid_fw:
 int pil_mss_debug_reset(struct pil_desc *pil)
 {
 	struct q6v5_data *drv = container_of(pil, struct q6v5_data, desc);
-	u32 encryption_status;
+    u32 encryption_status;
 	int ret;
 
 
 	if (!pil->minidump_ss)
 		return 0;
-
+    
 	encryption_status = pil->minidump_ss->encryption_status;
 
 	if ((pil->minidump_ss->md_ss_enable_status != MD_SS_ENABLED) ||

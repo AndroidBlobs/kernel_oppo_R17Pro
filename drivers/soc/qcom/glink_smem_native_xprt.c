@@ -172,8 +172,6 @@ struct mailbox_config_info {
  * @kwork:			Work to be executed when an irq is received.
  * @kworker:			Handle to the entity processing of
 				deferred commands.
- * @tasklet			Handle to tasklet to process incoming data
-				packets in atomic manner.
  * @task:			Handle to the task context used to run @kworker.
  * @use_ref:			Active uses of this transport use this to grab
  *				a reference.  Used for ssr synchronization.
@@ -217,7 +215,10 @@ struct edge_info {
 	struct kthread_work kwork;
 	struct kthread_worker kworker;
 	struct task_struct *task;
+	#ifndef VENDOR_EDIT
+	//Hongbo.Dong@MultiMedia.AudioServer.Framework, 2018/07/25, Remove for CR 2225619, audio play more efficient
 	struct tasklet_struct tasklet;
+	#endif /* VENDOR_EDIT */
 	struct srcu_struct use_ref;
 	bool in_ssr;
 	spinlock_t rx_lock;
@@ -1230,6 +1231,8 @@ static void __rx_worker(struct edge_info *einfo, bool atomic_ctx)
 	srcu_read_unlock(&einfo->use_ref, rcu_id);
 }
 
+#ifndef VENDOR_EDIT
+//Hongbo.Dong@MultiMedia.AudioServer.Framework, 2018/07/25, Remove for CR 2225619, audio play more efficient
 /**
  * rx_worker_atomic() - worker function to process received command in atomic
  *			context.
@@ -1241,6 +1244,7 @@ static void rx_worker_atomic(unsigned long param)
 
 	__rx_worker(einfo, true);
 }
+#endif /* VENDOR_EDIT */
 
 /**
  * rx_worker() - worker function to process received commands
@@ -1261,7 +1265,12 @@ irqreturn_t irq_handler(int irq, void *priv)
 	if (einfo->rx_reset_reg)
 		writel_relaxed(einfo->out_irq_mask, einfo->rx_reset_reg);
 
+#ifndef VENDOR_EDIT
+//Hongbo.Dong@MultiMedia.AudioServer.Framework, 2018/07/25, Modify for CR 2225619, audio play more efficient
 	tasklet_hi_schedule(&einfo->tasklet);
+#else /* VENDOR_EDIT */
+    __rx_worker(einfo, true);
+#endif /* VENDOR_EDIT */
 	einfo->rx_irq_count++;
 
 	return IRQ_HANDLED;
@@ -2424,7 +2433,10 @@ static int glink_smem_native_probe(struct platform_device *pdev)
 	init_waitqueue_head(&einfo->tx_blocked_queue);
 	kthread_init_work(&einfo->kwork, rx_worker);
 	kthread_init_worker(&einfo->kworker);
+	#ifndef VENDOR_EDIT
+	//Hongbo.Dong@MultiMedia.AudioServer.Framework, 2018/07/25, Remove for CR 2225619, audio play more efficient
 	tasklet_init(&einfo->tasklet, rx_worker_atomic, (unsigned long)einfo);
+	#endif /* VENDOR_EDIT */
 	einfo->read_from_fifo = read_from_fifo;
 	einfo->write_to_fifo = write_to_fifo;
 	init_srcu_struct(&einfo->use_ref);
@@ -2541,7 +2553,10 @@ smem_alloc_fail:
 	kthread_flush_worker(&einfo->kworker);
 	kthread_stop(einfo->task);
 	einfo->task = NULL;
+	#ifndef VENDOR_EDIT
+	//Hongbo.Dong@MultiMedia.AudioServer.Framework, 2018/07/25, Remove for CR 2225619, audio play more efficient
 	tasklet_kill(&einfo->tasklet);
+	#endif /* VENDOR_EDIT */
 kthread_fail:
 	iounmap(einfo->out_irq_reg);
 ioremap_fail:
@@ -2626,7 +2641,10 @@ static int glink_rpm_native_probe(struct platform_device *pdev)
 	init_waitqueue_head(&einfo->tx_blocked_queue);
 	kthread_init_work(&einfo->kwork, rx_worker);
 	kthread_init_worker(&einfo->kworker);
+	#ifndef VENDOR_EDIT
+	//Hongbo.Dong@MultiMedia.AudioServer.Framework, 2018/07/25, Remove for CR 2225619, audio play more efficient
 	tasklet_init(&einfo->tasklet, rx_worker_atomic, (unsigned long)einfo);
+	#endif /* VENDOR_EDIT */
 	einfo->intentless = true;
 	einfo->read_from_fifo = memcpy32_fromio;
 	einfo->write_to_fifo = memcpy32_toio;
@@ -2788,7 +2806,10 @@ toc_init_fail:
 	kthread_flush_worker(&einfo->kworker);
 	kthread_stop(einfo->task);
 	einfo->task = NULL;
+	#ifndef VENDOR_EDIT
+	//Hongbo.Dong@MultiMedia.AudioServer.Framework, 2018/07/25, Remove for CR 2225619, audio play more efficient
 	tasklet_kill(&einfo->tasklet);
+	#endif /* VENDOR_EDIT */
 kthread_fail:
 	iounmap(msgram);
 msgram_ioremap_fail:
@@ -2917,7 +2938,10 @@ static int glink_mailbox_probe(struct platform_device *pdev)
 	init_waitqueue_head(&einfo->tx_blocked_queue);
 	kthread_init_work(&einfo->kwork, rx_worker);
 	kthread_init_worker(&einfo->kworker);
+	#ifndef VENDOR_EDIT
+	//Hongbo.Dong@MultiMedia.AudioServer.Framework, 2018/07/25, Remove for CR 2225619, audio play more efficient
 	tasklet_init(&einfo->tasklet, rx_worker_atomic, (unsigned long)einfo);
+	#endif /* VENDOR_EDIT */
 	einfo->read_from_fifo = read_from_fifo;
 	einfo->write_to_fifo = write_to_fifo;
 	init_srcu_struct(&einfo->use_ref);
@@ -3039,7 +3063,10 @@ smem_alloc_fail:
 	kthread_flush_worker(&einfo->kworker);
 	kthread_stop(einfo->task);
 	einfo->task = NULL;
+	#ifndef VENDOR_EDIT
+	//Hongbo.Dong@MultiMedia.AudioServer.Framework, 2018/07/25, Remove for CR 2225619, audio play more efficient
 	tasklet_kill(&einfo->tasklet);
+	#endif /* VENDOR_EDIT */
 kthread_fail:
 	iounmap(einfo->rx_reset_reg);
 rx_reset_ioremap_fail:

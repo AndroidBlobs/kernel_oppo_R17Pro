@@ -33,6 +33,7 @@
 #include <soc/qcom/watchdog.h>
 #include <linux/dma-mapping.h>
 
+
 #define MODULE_NAME "msm_watchdog"
 #define WDT0_ACCSCSSNBARK_INT 0
 #define TCSR_WDT_CFG	0x30
@@ -55,7 +56,7 @@
 
 static struct msm_watchdog_data *wdog_data;
 
-static int cpu_idle_pc_state[NR_CPUS];
+int cpu_idle_pc_state[NR_CPUS];
 
 /*
  * user_pet_enable:
@@ -388,10 +389,10 @@ static void keep_alive_response(void *info)
 static void ping_other_cpus(struct msm_watchdog_data *wdog_dd)
 {
 	int cpu;
-
 	cpumask_clear(&wdog_dd->alive_mask);
 	/* Make sure alive mask is cleared and set in order */
 	smp_mb();
+
 	for_each_cpu(cpu, cpu_online_mask) {
 		if (!cpu_idle_pc_state[cpu] && !cpu_isolated(cpu))
 			smp_call_function_single(cpu, keep_alive_response,
@@ -524,10 +525,12 @@ static irqreturn_t wdog_bark_handler(int irq, void *dev_id)
 	nanosec_rem = do_div(wdog_dd->last_pet, 1000000000);
 	dev_info(wdog_dd->dev, "Watchdog last pet at %lu.%06lu\n",
 			(unsigned long) wdog_dd->last_pet, nanosec_rem / 1000);
-	if (wdog_dd->do_ipi_ping)
+	if (wdog_dd->do_ipi_ping) {
 		dump_cpu_alive_mask(wdog_dd);
+	}
 	msm_trigger_wdog_bite();
 	panic("Failed to cause a watchdog bite! - Falling back to kernel panic!");
+
 	return IRQ_HANDLED;
 }
 
@@ -831,6 +834,8 @@ static int msm_watchdog_probe(struct platform_device *pdev)
 	cpumask_clear(&wdog_dd->alive_mask);
 	wdog_dd->watchdog_task = kthread_create(watchdog_kthread, wdog_dd,
 			"msm_watchdog");
+
+
 	if (IS_ERR(wdog_dd->watchdog_task)) {
 		ret = PTR_ERR(wdog_dd->watchdog_task);
 		goto err;

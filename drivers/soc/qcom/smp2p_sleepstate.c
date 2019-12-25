@@ -20,91 +20,104 @@
 
 #define SET_DELAY (2 * HZ)
 #define PROC_AWAKE_ID 12 /* 12th bit */
+#ifndef VENDOR_EDIT
+//Fei.Mo@BSP.Sensor 2018/06/25 modify for notify sensor suspend forward
 static int slst_gpio_base_id;
+#else
+int slst_gpio_base_id;
+#endif
 
 /**
  * sleepstate_pm_notifier() - PM notifier callback function.
- * @nb:		Pointer to the notifier block.
- * @event:	Suspend state event from PM module.
- * @unused:	Null pointer from PM module.
+ * @nb:        Pointer to the notifier block.
+ * @event:    Suspend state event from PM module.
+ * @unused:    Null pointer from PM module.
  *
  * This function is register as callback function to get notifications
  * from the PM module on the system suspend state.
  */
 static int sleepstate_pm_notifier(struct notifier_block *nb,
-				unsigned long event, void *unused)
+                unsigned long event, void *unused)
 {
-	switch (event) {
-	case PM_SUSPEND_PREPARE:
-		gpio_set_value(slst_gpio_base_id + PROC_AWAKE_ID, 0);
-		usleep_range(10000, 10500); /* Tuned based on SMP2P latencies */
-		msm_ipc_router_set_ws_allowed(true);
-		break;
+    switch (event) {
+    case PM_SUSPEND_PREPARE:
+        #ifndef VENDOR_EDIT
+        //Fei.Mo@BSP.Sensor 2018/06/25 modify for notify sensor suspend forward
+        gpio_set_value(slst_gpio_base_id + PROC_AWAKE_ID, 0);
+        #endif
 
-	case PM_POST_SUSPEND:
-		gpio_set_value(slst_gpio_base_id + PROC_AWAKE_ID, 1);
-		msm_ipc_router_set_ws_allowed(false);
-		break;
-	}
-	return NOTIFY_DONE;
+        usleep_range(10000, 10500); /* Tuned based on SMP2P latencies */
+        msm_ipc_router_set_ws_allowed(true);
+        break;
+
+    case PM_POST_SUSPEND:
+        #ifndef VENDOR_EDIT
+        //Fei.Mo@BSP.Sensor 2018/06/25 modify for notify sensor suspend forward
+        gpio_set_value(slst_gpio_base_id + PROC_AWAKE_ID, 1);
+        #endif
+
+        msm_ipc_router_set_ws_allowed(false);
+        break;
+    }
+    return NOTIFY_DONE;
 }
 
 static struct notifier_block sleepstate_pm_nb = {
-	.notifier_call = sleepstate_pm_notifier,
-	.priority = INT_MAX,
+    .notifier_call = sleepstate_pm_notifier,
+    .priority = INT_MAX,
 };
 
 static int smp2p_sleepstate_probe(struct platform_device *pdev)
 {
-	int ret;
-	struct device_node *node = pdev->dev.of_node;
+    int ret;
+    struct device_node *node = pdev->dev.of_node;
 
-	slst_gpio_base_id = of_get_gpio(node, 0);
-	if (slst_gpio_base_id == -EPROBE_DEFER) {
-		return slst_gpio_base_id;
-	} else if (slst_gpio_base_id < 0) {
-		SMP2P_ERR("%s: Error to get gpio %d\n",
-				__func__, slst_gpio_base_id);
-		return slst_gpio_base_id;
-	}
+    slst_gpio_base_id = of_get_gpio(node, 0);
+    if (slst_gpio_base_id == -EPROBE_DEFER) {
+        return slst_gpio_base_id;
+    } else if (slst_gpio_base_id < 0) {
+        SMP2P_ERR("%s: Error to get gpio %d\n",
+                __func__, slst_gpio_base_id);
+        return slst_gpio_base_id;
+    }
 
 
-	gpio_set_value(slst_gpio_base_id + PROC_AWAKE_ID, 1);
+    gpio_set_value(slst_gpio_base_id + PROC_AWAKE_ID, 1);
 
-	ret = register_pm_notifier(&sleepstate_pm_nb);
-	if (ret)
-		SMP2P_ERR("%s: power state notif error %d\n", __func__, ret);
+    ret = register_pm_notifier(&sleepstate_pm_nb);
+    if (ret)
+        SMP2P_ERR("%s: power state notif error %d\n", __func__, ret);
 
-	return 0;
+    return 0;
 }
 
 static const struct of_device_id msm_smp2p_slst_match_table[] = {
-	{.compatible = "qcom,smp2pgpio_sleepstate_3_out"},
-	{.compatible = "qcom,smp2pgpio-sleepstate-out"},
-	{},
+    {.compatible = "qcom,smp2pgpio_sleepstate_3_out"},
+    {.compatible = "qcom,smp2pgpio-sleepstate-out"},
+    {},
 };
 
 static struct platform_driver smp2p_sleepstate_driver = {
-	.probe = smp2p_sleepstate_probe,
-	.driver = {
-		.name = "smp2p_sleepstate",
-		.owner = THIS_MODULE,
-		.of_match_table = msm_smp2p_slst_match_table,
-	},
+    .probe = smp2p_sleepstate_probe,
+    .driver = {
+        .name = "smp2p_sleepstate",
+        .owner = THIS_MODULE,
+        .of_match_table = msm_smp2p_slst_match_table,
+    },
 };
 
 static int __init smp2p_sleepstate_init(void)
 {
-	int ret;
+    int ret;
 
-	ret = platform_driver_register(&smp2p_sleepstate_driver);
-	if (ret) {
-		SMP2P_ERR("%s: smp2p_sleepstate_driver register failed %d\n",
-			 __func__, ret);
-		return ret;
-	}
+    ret = platform_driver_register(&smp2p_sleepstate_driver);
+    if (ret) {
+        SMP2P_ERR("%s: smp2p_sleepstate_driver register failed %d\n",
+             __func__, ret);
+        return ret;
+    }
 
-	return 0;
+    return 0;
 }
 
 module_init(smp2p_sleepstate_init);
