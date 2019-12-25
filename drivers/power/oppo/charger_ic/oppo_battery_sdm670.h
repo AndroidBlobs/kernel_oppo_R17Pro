@@ -1,30 +1,29 @@
-/* Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/**********************************************************************
+* Copyright (c)  2018-2019  Guangdong OPPO Mobile Comm Corp., Ltd
+* VENDOR_EDIT
+* Description: Charger IC management module for charger system framework.
+*              Manage all charger IC and define abstarct function flow.
+* Version   : 1.0
+* Date      : 2018-06-27
+* Author    : Jianchao.Shi@PSW.BSP		   	
+* ------------------------------ Revision History: --------------------------------
+* <version>       <date>          <author>              			 <desc>
+* Revision 1.0    2018-06-27    Tongfeng.huang@PSW.BSP    	 Created for new architecture
+**********************************************************************/
 
-#ifndef __SMB2_CHARGER_H
-#define __SMB2_CHARGER_H
+
+#ifndef _OPPO_BATTERY_QCOM_SDM670_H_
+#define _OPPO_BATTERY_QCOM_SDM670_H_
 #include <linux/types.h>
 #include <linux/interrupt.h>
 #include <linux/irqreturn.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/consumer.h>
 #include <linux/extcon.h>
-#include "storm-watch.h"
-
-#ifdef VENDOR_EDIT
-/* Jianchao.Shi@BSP.CHG.Basic, 2017/01/22, sjc Add for charging */
-
-#endif
-
+#include "../../../../kernel/msm-4.9/drivers/power/supply/qcom/storm-watch.h"
+#include "../../../../kernel/msm-4.9/drivers/power/supply/qcom/smb-reg.h"
+#include "../../../../kernel/msm-4.9/drivers/power/supply/qcom/battery.h"
+#include "../../../../kernel/msm-4.9/drivers/power/supply/qcom/step-chg-jeita.h"
 
 enum print_reason {
 	PR_INTERRUPT	= BIT(0),
@@ -83,6 +82,11 @@ enum print_reason {
 #ifdef VENDOR_EDIT
 /* Jianchao.Shi@BSP.CHG.Basic, 2018/01/30, sjc Add for using gpio as CC detect */
 #define CCDETECT_VOTER			"CCDETECT_VOTER"
+#define DIVIDER_SET_VOTER			"DIVIDER_SET_VOTER"
+#endif
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@BSP.CHG.Basic, 2018/02/13, sjc Add for charging */
+#define PD_DIS_VOTER			"PD_DIS_VOTER"
 #endif
 
 #define VCONN_MAX_ATTEMPTS	3
@@ -384,6 +388,11 @@ struct smb_charger {
 	bool			try_sink_active;
 	int			boost_current_ua;
 	int			temp_speed_reading_count;
+	bool			fake_usb_insertion;
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@BSP.CHG.Basic, 2018/07/13, sjc Add for fake typec */
+	bool			fake_typec_insertion;
+#endif
 
 	/* extcon for VBUS / ID notification to USB for uUSB */
 	struct extcon_dev	*extcon;
@@ -400,6 +409,9 @@ struct smb_charger {
 #ifdef VENDOR_EDIT
 /* Jianchao.Shi@BSP.CHG.Basic, 2017/08/10, sjc Add for charging */
 	int			pre_current_ma;
+	bool		is_dpdm_on_usb;
+	struct delayed_work	divider_set_work;
+	struct work_struct	dpdm_set_work;
 #endif
 #ifdef VENDOR_EDIT
 /* Jianchao.Shi@BSP.CHG.Basic, 2018/01/30, sjc Add for using gpio as CC detect */
@@ -409,6 +421,12 @@ struct smb_charger {
 	struct pinctrl_state	*ccdetect_active;
 	struct pinctrl_state	*ccdetect_sleep;
 	struct delayed_work	ccdetect_work;
+#endif
+#ifdef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2018/09/27, sjc Add for set uart pinctrl to read chargerID */
+	struct pinctrl		*chg_2uart_pinctrl;
+	struct pinctrl_state	*chg_2uart_default;
+	struct pinctrl_state	*chg_2uart_sleep;
 #endif
 };
 enum skip_reason {
@@ -629,12 +647,8 @@ int smblib_set_prop_pr_swap_in_progress(struct smb_charger *chg,
 				const union power_supply_propval *val);
 int smblib_stat_sw_override_cfg(struct smb_charger *chg, bool override);
 void smblib_usb_typec_change(struct smb_charger *chg);
-#ifdef VENDOR_EDIT
-/* tongfeng.huang@BSP.CHG.Basic, 2018/04/23,  Add for using gpio as CC  detect */
-const struct apsd_result *smblib_update_usb_type(struct smb_charger *chg);
-irqreturn_t oppo_ccdetect_change_handler(int irq, void *data);
-#endif
 
 int smblib_init(struct smb_charger *chg);
 int smblib_deinit(struct smb_charger *chg);
-#endif /* __SMB2_CHARGER_H */
+
+#endif /* _OPPO_BATTERY_QCOM_SDM670_H_ */
