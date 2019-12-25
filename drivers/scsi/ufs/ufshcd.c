@@ -49,6 +49,10 @@
 #include "ufs-debugfs.h"
 #include "ufs-qcom.h"
 
+#ifdef VENDOR_EDIT
+//zhenjian Jiang@PSW.BSP.Storage.UFS, 2018-05-04 add for ufs device in /proc/devinfo 
+#include <soc/oppo/device_info.h>
+#endif
 #define CREATE_TRACE_POINTS
 #include <trace/events/ufs.h>
 
@@ -6496,8 +6500,19 @@ static void ufshcd_rls_handler(struct work_struct *work)
 	u32 mode;
 
 	hba = container_of(work, struct ufs_hba, rls_work);
+#ifndef VENDOR_EDIT
+//yh@PSW.BSP.Storage.UFS, 2018-08-10, Add for fix race condition in rls_work and ufshcd_resume
 	ufshcd_scsi_block_requests(hba);
+#endif
 	pm_runtime_get_sync(hba->dev);
+#ifdef VENDOR_EDIT
+//yh@PSW.BSP.Storage.UFS, 2018-08-10, Add for fix race condition in rls_work and ufshcd_resume
+        ufshcd_scsi_block_requests(hba);
+#endif
+#ifdef VENDOR_EDIT
+//Chunyi.Mei@PSW.BSP.Storage.UFS, 2017-10-23, Add for synchronize between rls handler and clock scaling
+	down_write(&hba->lock);
+#endif /* VENDOR_EDIT */
 	ret = ufshcd_wait_for_doorbell_clr(hba, U64_MAX);
 	if (ret) {
 		dev_err(hba->dev,
@@ -6531,6 +6546,10 @@ static void ufshcd_rls_handler(struct work_struct *work)
 		hba->restore_needed = false;
 
 out:
+#ifdef VENDOR_EDIT
+//Chunyi.Mei@PSW.BSP.Storage.UFS, 2017-10-23, Add for synchronize between rls handler and clock scaling
+	up_write(&hba->lock);
+#endif /* VENDOR_EDIT */
 	ufshcd_scsi_unblock_requests(hba);
 	pm_runtime_put_sync(hba->dev);
 }
@@ -7480,7 +7499,12 @@ static int ufshcd_scsi_add_wlus(struct ufs_hba *hba)
 	struct scsi_device *sdev_boot = NULL;
 	bool is_bootable_dev = false;
 	bool is_embedded_dev = false;
-
+#ifdef VENDOR_EDIT
+//yh@PSW.BSP.Storage.UFS, 2018-05-31 add for ufs device in /proc/devinfo
+	static char temp_version[5] = {0};
+	static char vendor[9] = {0};
+	static char model[17] = {0};
+#endif
 	if ((hba->dev_info.b_device_sub_class == UFS_DEV_EMBEDDED_BOOTABLE) ||
 	    (hba->dev_info.b_device_sub_class == UFS_DEV_REMOVABLE_BOOTABLE))
 		is_bootable_dev = true;
@@ -7499,6 +7523,14 @@ static int ufshcd_scsi_add_wlus(struct ufs_hba *hba)
 		goto out;
 	}
 	scsi_device_put(hba->sdev_ufs_device);
+#ifdef VENDOR_EDIT
+//yh@PSW.BSP.Storage.UFS, 2018-05-31 add for ufs device in /proc/devinfo
+	strncpy(temp_version, hba->sdev_ufs_device->rev, 4);
+	strncpy(vendor, hba->sdev_ufs_device->vendor, 8);
+	strncpy(model, hba->sdev_ufs_device->model, 16);
+	register_device_proc("ufs_version", temp_version, vendor);
+	register_device_proc("ufs", model, vendor);
+#endif
 
 	if (is_bootable_dev) {
 		sdev_boot = __scsi_add_device(hba->host, 0, 0,
@@ -8019,16 +8051,9 @@ out:
 	/*
 	 * If we failed to initialize the device or the device is not
 	 * present, turn off the power/clocks etc.
-	 * In cases when there's both ufs and emmc present and regualtors
-	 * are shared b/w the two, this shouldn't turn-off the regulators
-	 * w/o giving emmc a chance to send PON.
-	 * Hence schedule a delayed suspend, thus giving enough time to
-	 * emmc to vote for the shared regulator.
 	 */
-	if (ret && !ufshcd_eh_in_progress(hba) && !hba->pm_op_in_progress) {
-		pm_runtime_put_noidle(hba->dev);
-		pm_schedule_suspend(hba->dev, MSEC_PER_SEC * 10);
-	}
+	if (ret && !ufshcd_eh_in_progress(hba) && !hba->pm_op_in_progress)
+		pm_runtime_put_sync(hba->dev);
 
 	trace_ufshcd_init(dev_name(hba->dev), ret,
 		ktime_to_us(ktime_sub(ktime_get(), start)),
@@ -9522,6 +9547,11 @@ out:
 		hba->curr_dev_pwr_mode, hba->uic_link_state);
 	if (!ret)
 		hba->is_sys_suspended = true;
+#ifdef VENDOR_EDIT
+//cuixiaogang@SRC.hypnus. 2018.09.13. add for ufs debug
+	dev_info(hba->dev, "%s:suspend done\n", __func__);
+#endif /* VENDOR_EDIT */
+
 	return ret;
 }
 EXPORT_SYMBOL(ufshcd_system_suspend);
@@ -9553,6 +9583,10 @@ out:
 	trace_ufshcd_system_resume(dev_name(hba->dev), ret,
 		ktime_to_us(ktime_sub(ktime_get(), start)),
 		hba->curr_dev_pwr_mode, hba->uic_link_state);
+#ifdef VENDOR_EDIT
+//cuixiaogang@SRC.hypnus. 2018.09.13. add for ufs debug
+	dev_info(hba->dev, "%s:resume done\n", __func__);
+#endif /* VENDOR_EDIT */
 	return ret;
 }
 EXPORT_SYMBOL(ufshcd_system_resume);
@@ -10256,6 +10290,10 @@ static ssize_t ufshcd_clkscale_enable_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", hba->clk_scaling.is_allowed);
 }
 
+#ifdef VENDOR_EDIT
+//cuixiaogang@SRC.hypnus.2018.05.09. add mutex lock here for race condition
+static DEFINE_MUTEX(ufshcd_clkscale_lock);
+#endif /* VENDOR_EDIT */
 static ssize_t ufshcd_clkscale_enable_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -10267,6 +10305,10 @@ static ssize_t ufshcd_clkscale_enable_store(struct device *dev,
 		return -EINVAL;
 
 	value = !!value;
+	#ifdef VENDOR_EDIT
+	//cuixiaogang@SRC.hypnus.2018.05.09. add mutex lock here for race condition
+	mutex_lock(&ufshcd_clkscale_lock);
+	#endif /* VENDOR_EDIT */
 	if (value == hba->clk_scaling.is_allowed)
 		goto out;
 
@@ -10291,6 +10333,10 @@ static ssize_t ufshcd_clkscale_enable_store(struct device *dev,
 	ufshcd_release(hba, false);
 	pm_runtime_put_sync(hba->dev);
 out:
+	#ifdef VENDOR_EDIT
+	//cuixiaogang@SRC.hypnus.2018.05.09. add mutex lock here for race condition
+	mutex_unlock(&ufshcd_clkscale_lock);
+	#endif /* VENDOR_EDIT */
 	return count;
 }
 
@@ -10420,7 +10466,7 @@ static void ufshcd_clkscaling_init_sysfs(struct ufs_hba *hba)
 	hba->clk_scaling.enable_attr.store = ufshcd_clkscale_enable_store;
 	sysfs_attr_init(&hba->clk_scaling.enable_attr.attr);
 	hba->clk_scaling.enable_attr.attr.name = "clkscale_enable";
-	hba->clk_scaling.enable_attr.attr.mode = S_IRUGO | S_IWUSR;
+	hba->clk_scaling.enable_attr.attr.mode = S_IRUGO | S_IWUSR | S_IWGRP;
 	if (device_create_file(hba->dev, &hba->clk_scaling.enable_attr))
 		dev_err(hba->dev, "Failed to create sysfs for clkscale_enable\n");
 }
