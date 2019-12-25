@@ -226,13 +226,6 @@ static int sdcardfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode
 	if (!saved_cred)
 		return -ENOMEM;
 
-	/* check disk space */
-	if (!check_min_free_space(dentry, 0, 1)) {
-		pr_err("sdcardfs: No minimum free space.\n");
-		err = -ENOSPC;
-		goto out_revert;
-	}
-
 	/* the lower_dentry is negative here */
 	sdcardfs_get_lower_path(dentry, &lower_path);
 	lower_dentry = lower_path.dentry;
@@ -329,8 +322,6 @@ out:
 	free_fs_struct(copied_fs);
 out_unlock:
 	sdcardfs_put_lower_path(dentry, &lower_path);
-out_revert:
-	revert_fsids(saved_cred);
 out_eacces:
 	return err;
 }

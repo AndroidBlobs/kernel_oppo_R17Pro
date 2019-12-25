@@ -1049,12 +1049,24 @@ static ssize_t oom_adj_read(struct file *file, char __user *buf, size_t count,
 	return simple_read_from_buffer(buf, count, ppos, buffer, len);
 }
 
+#define LMKD_DEBUG_ON 1
+s64 set_oom_count = 0;
+s64 set_oom_timestamp_enter[10];
+s64 set_oom_timestamp_exit[10];
+
 static int __set_oom_adj(struct file *file, int oom_adj, bool legacy)
 {
 	static DEFINE_MUTEX(oom_adj_mutex);
 	struct mm_struct *mm = NULL;
 	struct task_struct *task;
 	int err = 0;
+
+#if LMKD_DEBUG_ON
+    if(strncmp(current->comm, "lmkd", 4) == 0){
+        set_oom_timestamp_enter[set_oom_count%10] = ktime_to_us(ktime_get());
+        //printk("LMKD TEST: current comm = %s, timestamp = %lldus, count = %lld\n", current->comm, set_oom_timestamp_enter[(set_oom_count-1)%10], set_oom_count -1);
+    }
+#endif
 
 	task = get_proc_task(file_inode(file));
 	if (!task)
@@ -1134,6 +1146,13 @@ static int __set_oom_adj(struct file *file, int oom_adj, bool legacy)
 err_unlock:
 	mutex_unlock(&oom_adj_mutex);
 	put_task_struct(task);
+#if LMKD_DEBUG_ON
+    if(strncmp(current->comm, "lmkd", 4) == 0){
+        set_oom_timestamp_exit[set_oom_count%10] = ktime_to_us(ktime_get());
+        set_oom_count++;
+        //printk("LMKD TEST: current comm = %s, timestamp = %lldus, count = %lld\n", current->comm, set_oom_timestamp_exit[(set_oom_count-1)%10], set_oom_count -1);
+    }
+#endif
 	return err;
 }
 
@@ -3137,7 +3156,12 @@ static const struct pid_entry tgid_base_stuff[] = {
 	REG("mountinfo",  S_IRUGO, proc_mountinfo_operations),
 	REG("mountstats", S_IRUSR, proc_mountstats_operations),
 #ifdef CONFIG_PROCESS_RECLAIM
+#ifdef VENDOR_EDIT
+//fangpan@Swdp.shanghai,2017/07/1 give system uid write permission for reclaim
+	REG("reclaim", S_IWUSR | S_IWGRP | S_IWOTH, proc_reclaim_operations),
+#else
 	REG("reclaim", S_IWUSR, proc_reclaim_operations),
+#endif
 #endif
 #ifdef CONFIG_PROC_PAGE_MONITOR
 	REG("clear_refs", S_IWUSR, proc_clear_refs_operations),

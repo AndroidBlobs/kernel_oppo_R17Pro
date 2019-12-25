@@ -96,6 +96,10 @@ config MANDATORY_FILE_LOCKING
 	  To the best of my knowledge this is dead code that no one cares about.
 
 source "fs/crypto/Kconfig"
+#ifdef VENDOR_EDIT
+#Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Add for upgrade f2fs to v4.17-rc1
+source "fs/f2fs_crypto/Kconfig"
+#endif /*VENDOR_EDIT*/
 
 source "fs/notify/Kconfig"
 

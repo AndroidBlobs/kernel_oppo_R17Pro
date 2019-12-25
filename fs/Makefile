@@ -31,6 +31,10 @@ obj-$(CONFIG_USERFAULTFD)	+= userfaultfd.o
 obj-$(CONFIG_AIO)               += aio.o
 obj-$(CONFIG_FS_DAX)		+= dax.o
 obj-$(CONFIG_FS_ENCRYPTION)	+= crypto/
+#ifdef VENDOR_EDIT
+#Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Add for upgrade f2fs to v4.17-rc1
+obj-$(CONFIG_FS_F2FSCRYPTO_ENCRYPTION)  += f2fs_crypto/
+#endif /*VENDOR_EDIT*/
 obj-$(CONFIG_FILE_LOCKING)      += locks.o
 obj-$(CONFIG_COMPAT)		+= compat.o compat_ioctl.o
 obj-$(CONFIG_BINFMT_AOUT)	+= binfmt_aout.o
@@ -125,8 +129,14 @@ obj-$(CONFIG_TRACING)		+= tracefs/
 obj-$(CONFIG_OCFS2_FS)		+= ocfs2/
 obj-$(CONFIG_BTRFS_FS)		+= btrfs/
 obj-$(CONFIG_GFS2_FS)           += gfs2/
-obj-$(CONFIG_F2FS_FS)		+= f2fs/
+#ifndef VENDOR_EDIT
+#Chunyi.Mei@PSW.BSP.FS.F2FS, 2018-7-17, Modify for f2fs
+#obj-$(CONFIG_F2FS_FS)           += f2fs/
+#else /* VENDOR_EDIT */
+obj-$(CONFIG_F2FS_FS)		+= oppo_f2fs/
+#endif /* VENDOR_EDIT */
 obj-y				+= exofs/ # Multiple modules
 obj-$(CONFIG_CEPH_FS)		+= ceph/
 obj-$(CONFIG_PSTORE)		+= pstore/
 obj-$(CONFIG_EFIVAR_FS)		+= efivarfs/
+
