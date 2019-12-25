@@ -33,6 +33,7 @@
 
 #define VSYNC_DELAY msecs_to_jiffies(17)
 
+
 DEFINE_LED_TRIGGER(bl_led_trigger);
 
 void mdss_dsi_panel_pwm_cfg(struct mdss_dsi_ctrl_pdata *ctrl)
@@ -796,6 +797,7 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 
 	if ((bl_level < pdata->panel_info.bl_min) && (bl_level != 0))
 		bl_level = pdata->panel_info.bl_min;
+		
 
 	switch (ctrl_pdata->bklt_ctrl) {
 	case BL_WLED:

@@ -1889,6 +1889,11 @@ static void n_tty_close(struct tty_struct *tty)
 	if (tty->link)
 		n_tty_packet_mode_flush(tty);
 
+#if defined(CONFIG_TTY_FLUSH_LOCAL_ECHO)
+	if(tty->echo_delayed_work.work.func)
+		cancel_delayed_work_sync(&tty->echo_delayed_work);
+#endif
+
 	vfree(ldata);
 	tty->disc_data = NULL;
 }
@@ -1917,6 +1922,11 @@ static int n_tty_open(struct tty_struct *tty)
 	mutex_init(&ldata->output_lock);
 
 	tty->disc_data = ldata;
+
+#if defined(CONFIG_TTY_FLUSH_LOCAL_ECHO)
+	INIT_DELAYED_WORK(&tty->echo_delayed_work, continue_process_echoes);
+#endif
+
 	reset_buffer_flags(tty->disc_data);
 	ldata->column = 0;
 	ldata->canon_column = 0;

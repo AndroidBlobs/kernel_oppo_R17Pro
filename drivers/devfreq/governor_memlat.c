@@ -61,28 +61,90 @@ static ssize_t show_##name(struct device *dev,				\
 	return snprintf(buf, PAGE_SIZE, "%u\n", hw->name);		\
 }
 
+#ifdef VENDOR_EDIT
+//cuixiaogang@SRC.hypnus 2018.07.14 add interface to config bandwidth parameters
 #define store_attr(name, _min, _max) \
 static ssize_t store_##name(struct device *dev,				\
 			struct device_attribute *attr, const char *buf,	\
 			size_t count)					\
 {									\
-	struct devfreq *df = to_devfreq(dev);				\
-	struct memlat_node *hw = df->data;				\
+	struct devfreq *df;						\
+	struct memlat_node *hw;						\
 	int ret;							\
 	unsigned int val;						\
+	mutex_lock(&state_lock);					\
+	df = to_devfreq(dev);						\
+	if (df->gov_state != GOV_MEM_LATENCY) {				\
+		mutex_unlock(&state_lock);				\
+		return 0;						\
+	}								\
+	hw = df->data;							\
+	if (!hw) {							\
+		mutex_unlock(&state_lock);				\
+		return -EINVAL;						\
+	}								\
 	ret = kstrtouint(buf, 10, &val);				\
-	if (ret)							\
+	if (ret) {							\
+		mutex_unlock(&state_lock);				\
 		return ret;						\
+	}								\
 	val = max(val, _min);						\
 	val = min(val, _max);						\
 	hw->name = val;							\
+	mutex_unlock(&state_lock);					\
 	return count;							\
 }
 
-#define gov_attr(__attr, min, max)	\
+#define set_attr(name, val, _min, _max) \
+int memlat_set_##name(struct devfreq *df, unsigned int val)	\
+{								\
+	struct memlat_node *hw;					\
+	mutex_lock(&state_lock);				\
+	if (df->gov_state != GOV_MEM_LATENCY) {			\
+		mutex_unlock(&state_lock);			\
+		return 0;					\
+	}							\
+	hw = df->data;						\
+	if (!hw) {						\
+		mutex_unlock(&state_lock);			\
+		return -EINVAL;					\
+	}							\
+	val = max(val, _min);					\
+	val = min(val, _max);					\
+	hw->name = val;						\
+	mutex_unlock(&state_lock);				\
+	return 0;						\
+}								\
+EXPORT_SYMBOL(memlat_set_##name);
+
+#define get_attr(name)	\
+unsigned int memlat_get_##name(struct devfreq *df)	\
+{							\
+	unsigned int val;				\
+	struct memlat_node *hw;				\
+	mutex_lock(&state_lock);			\
+	if (df->gov_state != GOV_MEM_LATENCY) {		\
+		mutex_unlock(&state_lock);		\
+		return 0;				\
+	}						\
+	hw = df->data;					\
+	if (!hw) {					\
+		mutex_unlock(&state_lock);		\
+		return -EINVAL;				\
+	}						\
+	val = hw->name;					\
+	mutex_unlock(&state_lock);			\
+	return val;					\
+}							\
+EXPORT_SYMBOL(memlat_get_##name);
+
+#define gov_attr(__attr, val, min, max)	\
 show_attr(__attr)			\
 store_attr(__attr, min, max)		\
+set_attr(__attr, val, (min), (max))	\
+get_attr(__attr)	\
 static DEVICE_ATTR(__attr, 0644, show_##__attr, store_##__attr)
+#endif /* VENDOR_EDIT */
 
 static ssize_t show_map(struct device *dev, struct device_attribute *attr,
 			char *buf)
@@ -277,8 +339,14 @@ static int devfreq_memlat_get_freq(struct devfreq *df,
 	return 0;
 }
 
+#ifdef VENDOR_EDIT
+//cuixiaogang@SRC.hypnus 2018.07.14 add interface to config bandwidth parameters
+gov_attr(ratio_ceil, val, 1U, 10000U);
+gov_attr(stall_floor, val, 0U, 100U);
+#else
 gov_attr(ratio_ceil, 1U, 10000U);
 gov_attr(stall_floor, 0U, 100U);
+#endif /* VENDOR_EDIT */
 
 static struct attribute *memlat_dev_attr[] = {
 	&dev_attr_ratio_ceil.attr,
@@ -307,8 +375,13 @@ static struct attribute_group compute_dev_attr_group = {
 static int devfreq_memlat_ev_handler(struct devfreq *df,
 					unsigned int event, void *data)
 {
-	int ret;
+	int ret = 0;
 	unsigned int sample_ms;
+
+#ifdef VENDOR_EDIT
+//cheng.huang@SRC.hypnus.2018.09.07. add to avoid race condition
+	mutex_lock(&state_lock);
+#endif /*VENDOR_EDIT*/
 
 	switch (event) {
 	case DEVFREQ_GOV_START:
@@ -319,14 +392,29 @@ static int devfreq_memlat_ev_handler(struct devfreq *df,
 
 		ret = gov_start(df);
 		if (ret)
-			return ret;
+			goto out;
+#ifdef VENDOR_EDIT
+//cheng.huang@SRC.hypnus.2018.09.07. add to avoid race condition
+		/* hack for governor memlat */
+		if (!strncmp(df->governor_name,
+				"mem_latency", DEVFREQ_NAME_LEN))
+			df->gov_state = GOV_MEM_LATENCY;
+#endif /*VENDOR_EDIT*/
 
 		dev_dbg(df->dev.parent,
 			"Enabled Memory Latency governor\n");
 		break;
 
 	case DEVFREQ_GOV_STOP:
+#ifdef VENDOR_EDIT
+//cheng.huang@SRC.hypnus.2018.09.07. add to avoid race condition
+		if (!strncmp(df->governor_name,
+				"mem_latency", DEVFREQ_NAME_LEN))
+			df->gov_state = GOV_NONE;
+#endif /*VENDOR_EDIT*/
+
 		gov_stop(df);
+
 		dev_dbg(df->dev.parent,
 			"Disabled Memory Latency governor\n");
 		break;
@@ -339,7 +427,13 @@ static int devfreq_memlat_ev_handler(struct devfreq *df,
 		break;
 	}
 
-	return 0;
+out:
+#ifdef VENDOR_EDIT
+//cheng.huang@SRC.hypnus.2018.09.07. add to avoid race condition
+	mutex_unlock(&state_lock);
+#endif /*VENDOR_EDIT*/
+
+	return ret;
 }
 
 static struct devfreq_governor devfreq_gov_memlat = {

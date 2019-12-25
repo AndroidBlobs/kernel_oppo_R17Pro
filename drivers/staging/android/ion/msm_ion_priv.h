@@ -2,7 +2,7 @@
  * drivers/staging/android/ion/msm_ion_priv.h
  *
  * Copyright (C) 2011 Google, Inc.
- * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -39,6 +39,13 @@ int ion_system_secure_heap_drain(struct ion_heap *heap, void *data);
 
 struct ion_heap *ion_cma_secure_heap_create(struct ion_platform_heap *heap);
 void ion_cma_secure_heap_destroy(struct ion_heap *heap);
+
+#ifdef VENDOR_EDIT
+/* oujinrong@BSP.Fingerprint.Secure 2018/12/15, add QCOM patch for secure dsp */
+struct ion_heap *ion_secure_carveout_heap_create(
+			struct ion_platform_heap *heap);
+void ion_secure_carveout_heap_destroy(struct ion_heap *heap);
+#endif /* VENDOR_EDIT */
 
 long msm_ion_custom_ioctl(struct ion_client *client,
 			  unsigned int cmd,

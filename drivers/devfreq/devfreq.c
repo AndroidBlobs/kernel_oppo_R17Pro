@@ -612,6 +612,11 @@ struct devfreq *devfreq_add_device(struct device *dev,
 
 	srcu_init_notifier_head(&devfreq->transition_notifier_list);
 
+#ifdef VENDOR_EDIT
+//cheng.huang@SRC.hypnus.2018.09.07. add to avoid race condition
+	devfreq->gov_state = GOV_NONE;
+#endif /* VENDOR_EDIT */
+
 	mutex_unlock(&devfreq->lock);
 
 	mutex_lock(&devfreq_list_lock);
@@ -995,6 +1000,7 @@ static ssize_t governor_store(struct device *dev, struct device_attribute *attr,
 						    NULL);
 		}
 	}
+
 out:
 	mutex_unlock(&devfreq_list_lock);
 
@@ -1090,11 +1096,28 @@ static ssize_t polling_interval_store(struct device *dev,
 		return -EINVAL;
 
 	df->governor->event_handler(df, DEVFREQ_GOV_INTERVAL, &value);
+
 	ret = count;
 
 	return ret;
 }
+
+#ifdef VENDOR_EDIT
+//cuixiaogang@SRC.hypnus. 2018.07.23. add for hypnus to control devfreq
 static DEVICE_ATTR_RW(polling_interval);
+int set_polling_interval(struct devfreq *df, unsigned int val)
+{
+	unsigned int value = val;
+
+	if (!df || !df->governor)
+		return -EINVAL;
+
+	df->governor->event_handler(df, DEVFREQ_GOV_INTERVAL, &value);
+
+	return 0;
+}
+EXPORT_SYMBOL(set_polling_interval);
+#endif /*VENDOR_EDIT*/
 
 static ssize_t min_freq_store(struct device *dev, struct device_attribute *attr,
 			      const char *buf, size_t count)
@@ -1161,6 +1184,79 @@ show_one(max_freq);
 
 static DEVICE_ATTR_RW(min_freq);
 static DEVICE_ATTR_RW(max_freq);
+
+#ifdef VENDOR_EDIT
+//cuixiaogang@SRC.hypnus.2018-04-05. add support to set devfreq limit
+int devfreq_get_limit(struct devfreq *df, unsigned long *min, unsigned long *max)
+{
+	unsigned long chipinfo_min = ~0, chipinfo_max = 0;
+	int idx;
+
+	if (min)
+		*min = 0;
+	if (max)
+		*max = 0;
+
+	if (!df || !df->profile->freq_table) {
+		pr_err("No devfreq or No table\n");
+		return -EINVAL;
+	}
+
+	mutex_lock(&df->lock);
+	for (idx = 0; idx < df->profile->max_state; idx++) {
+		if (chipinfo_min > df->profile->freq_table[idx])
+			chipinfo_min = df->profile->freq_table[idx];
+		if (chipinfo_max < df->profile->freq_table[idx])
+			chipinfo_max = df->profile->freq_table[idx];
+	}
+	mutex_unlock(&df->lock);
+
+	if (min)
+		*min = chipinfo_min;
+	if (max)
+		*max = chipinfo_max;
+	return 0;
+}
+
+int devfreq_set_limit(struct devfreq *df, unsigned long min, unsigned long max)
+{
+	int idx;
+	unsigned long chipinfo_min = ~0, chipinfo_max = 0;
+
+	if (!df || !df->profile->freq_table) {
+		pr_err("No devfreq or No table\n");
+		return -EINVAL;
+	}
+
+	if (chipinfo_min > chipinfo_max) {
+		for (idx = 0; idx < df->profile->max_state; idx++) {
+			if (chipinfo_min > df->profile->freq_table[idx])
+				chipinfo_min = df->profile->freq_table[idx];
+			if (chipinfo_max < df->profile->freq_table[idx])
+				chipinfo_max = df->profile->freq_table[idx];
+		}
+	}
+
+	if (min < chipinfo_min)
+		min = chipinfo_min;
+	if (max > chipinfo_max)
+		max = chipinfo_max;
+
+	if (min > max)
+		max = min;
+
+	pr_debug("min %lu max %lu, chip min %lu chip max %lu\n",
+		min, max, chipinfo_min, chipinfo_max);
+
+	mutex_lock(&df->lock);
+	df->min_freq = min;
+	df->max_freq = max;
+	update_devfreq(df);
+	mutex_unlock(&df->lock);
+	return 0;
+}
+EXPORT_SYMBOL(devfreq_set_limit);
+#endif /* VENDOR_EDIT */
 
 static ssize_t available_frequencies_show(struct device *d,
 					  struct device_attribute *attr,

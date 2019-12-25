@@ -74,6 +74,10 @@ struct hwmon_node {
 	struct bw_hwmon *hw;
 	struct devfreq_governor *gov;
 	struct attribute_group *attr_grp;
+#ifdef VENDOR_EDIT
+//cheng.huang@SRC.hypnus.2018.09.07. add to avoid race condition
+	struct mutex mon_lock;
+#endif
 };
 
 #define UP_WAKE 1
@@ -95,28 +99,90 @@ static ssize_t show_##name(struct device *dev,				\
 	return snprintf(buf, PAGE_SIZE, "%u\n", hw->name);		\
 }
 
+#ifdef VENDOR_EDIT
+//cuixiaogang@SRC.hypnus 2018.07.14 add interface to config bandwidth parameters
 #define store_attr(name, _min, _max) \
 static ssize_t store_##name(struct device *dev,				\
 			struct device_attribute *attr, const char *buf,	\
 			size_t count)					\
 {									\
-	struct devfreq *df = to_devfreq(dev);				\
-	struct hwmon_node *hw = df->data;				\
+	struct devfreq *df;						\
+	struct hwmon_node *hw;						\
 	int ret;							\
 	unsigned int val;						\
+	mutex_lock(&state_lock);					\
+	df = to_devfreq(dev);						\
+	if (df->gov_state != GOV_BW_HWMON) {				\
+		mutex_unlock(&state_lock);				\
+		return 0;						\
+	}								\
+	hw = df->data;							\
+	if (!hw) {							\
+		mutex_unlock(&state_lock);				\
+		return -EINVAL;						\
+	}								\
 	ret = kstrtoint(buf, 10, &val);					\
-	if (ret)							\
+	if (ret) {							\
+		mutex_unlock(&state_lock);				\
 		return ret;						\
+	}								\
 	val = max(val, _min);						\
 	val = min(val, _max);						\
 	hw->name = val;							\
+	mutex_unlock(&state_lock);					\
 	return count;							\
 }
 
-#define gov_attr(__attr, min, max)	\
+#define set_attr(name, val, _min, _max) \
+int hwmon_set_##name(struct devfreq *df, unsigned int val)		\
+{									\
+	struct hwmon_node *hw;						\
+	mutex_lock(&state_lock);						\
+	if (df->gov_state != GOV_BW_HWMON) {				\
+		mutex_unlock(&state_lock);				\
+		return 0;						\
+	}								\
+	hw = df->data;							\
+	if (!hw) {							\
+		mutex_unlock(&state_lock);				\
+		return -EINVAL;						\
+	}								\
+	val = max(val, _min);						\
+	val = min(val, _max);						\
+	hw->name = val;							\
+	mutex_unlock(&state_lock);					\
+	return 0;							\
+}									\
+EXPORT_SYMBOL(hwmon_set_##name);
+
+#define get_attr(name)	\
+unsigned int hwmon_get_##name(struct devfreq* df)	\
+{							\
+	struct hwmon_node *hw;				\
+	unsigned int val;				\
+	mutex_lock(&state_lock);			\
+	if (df->gov_state != GOV_BW_HWMON) {		\
+		mutex_unlock(&state_lock);		\
+		return 0;				\
+	}						\
+	hw = df->data;					\
+	if (!hw) {					\
+		mutex_unlock(&state_lock);		\
+		return -EINVAL;				\
+	}						\
+	val = hw->name;					\
+	mutex_unlock(&state_lock);			\
+	return val;					\
+}							\
+EXPORT_SYMBOL(hwmon_get_##name);
+
+#define gov_attr(__attr, val, min, max)	\
 show_attr(__attr)			\
 store_attr(__attr, (min), (max))	\
+set_attr(__attr, val, (min), (max))	\
+get_attr(__attr)		\
 static DEVICE_ATTR(__attr, 0644, show_##__attr, store_##__attr)
+#endif /* VENDOR_EDIT */
 
 #define show_list_attr(name, n) \
 static ssize_t show_list_##name(struct device *dev,			\
@@ -511,8 +577,17 @@ int update_bw_hwmon(struct bw_hwmon *hwmon)
 	if (!node)
 		return -ENODEV;
 
+#ifdef VENDOR_EDIT
+//cheng.huang@SRC.hypnus.2018.09.07. add to avoid race condition
+	mutex_lock(&node->mon_lock);
+	if (!node->mon_started) {
+		mutex_unlock(&node->mon_lock);
+		return -EBUSY;
+	}
+#else
 	if (!node->mon_started)
 		return -EBUSY;
+#endif
 
 	dev_dbg(df->dev.parent, "Got update request\n");
 	devfreq_monitor_stop(df);
@@ -525,6 +600,11 @@ int update_bw_hwmon(struct bw_hwmon *hwmon)
 	mutex_unlock(&df->lock);
 
 	devfreq_monitor_start(df);
+
+#ifdef VENDOR_EDIT
+//cheng.huang@SRC.hypnus.2018.09.07. add to avoid race condition
+	mutex_unlock(&node->mon_lock);
+#endif
 
 	return 0;
 }
@@ -572,7 +652,14 @@ static void stop_monitor(struct devfreq *df, bool init)
 	struct hwmon_node *node = df->data;
 	struct bw_hwmon *hw = node->hw;
 
+#ifdef VENDOR_EDIT
+//cheng.huang@SRC.hypnus.2018.09.07. add to avoid race condition
+	mutex_lock(&node->mon_lock);
 	node->mon_started = false;
+	mutex_unlock(&node->mon_lock);
+#else
+	node->mon_started = false;
+#endif
 
 	if (init) {
 		devfreq_monitor_stop(df);
@@ -757,6 +844,22 @@ static ssize_t show_throttle_adj(struct device *dev,
 static DEVICE_ATTR(throttle_adj, 0644, show_throttle_adj,
 						store_throttle_adj);
 
+#ifdef VENDOR_EDIT
+//cuixiaogang@SRC.hypnus 2018.07.14 add interface to config bandwidth parameters
+gov_attr(guard_band_mbps, val, 0U, 2000U);
+gov_attr(decay_rate, val, 0U, 100U);
+gov_attr(io_percent, val, 1U, 100U);
+gov_attr(bw_step, val, 50U, 1000U);
+gov_attr(sample_ms, val, 1U, 50U);
+gov_attr(up_scale, val, 0U, 500U);
+gov_attr(up_thres, val, 1U, 100U);
+gov_attr(down_thres, val, 0U, 90U);
+gov_attr(down_count, val, 0U, 90U);
+gov_attr(hist_memory, val, 0U, 90U);
+gov_attr(hyst_trigger_count, val, 0U, 90U);
+gov_attr(hyst_length, val, 0U, 90U);
+gov_attr(idle_mbps, val, 0U, 2000U);
+#else
 gov_attr(guard_band_mbps, 0U, 2000U);
 gov_attr(decay_rate, 0U, 100U);
 gov_attr(io_percent, 1U, 100U);
@@ -770,6 +873,7 @@ gov_attr(hist_memory, 0U, 90U);
 gov_attr(hyst_trigger_count, 0U, 90U);
 gov_attr(hyst_length, 0U, 90U);
 gov_attr(idle_mbps, 0U, 2000U);
+#endif /* VENDOR_EDIT */
 gov_list_attr(mbps_zones, NUM_MBPS_ZONES, 0U, UINT_MAX);
 
 static struct attribute *dev_attr[] = {
@@ -804,7 +908,10 @@ static int devfreq_bw_hwmon_ev_handler(struct devfreq *df,
 	struct hwmon_node *node;
 	struct bw_hwmon *hw;
 
+#ifdef VENDOR_EDIT
+//cheng.huang@SRC.hypnus.2018.09.07. add to avoid race condition
 	mutex_lock(&state_lock);
+#endif /*VENDOR_EDIT*/
 
 	switch (event) {
 	case DEVFREQ_GOV_START:
@@ -817,12 +924,16 @@ static int devfreq_bw_hwmon_ev_handler(struct devfreq *df,
 		if (ret)
 			goto out;
 
+		df->gov_state = GOV_BW_HWMON;
+
 		dev_dbg(df->dev.parent,
 			"Enabled dev BW HW monitor governor\n");
 		break;
 
 	case DEVFREQ_GOV_STOP:
+		df->gov_state = GOV_NONE;
 		gov_stop(df);
+
 		dev_dbg(df->dev.parent,
 			"Disabled dev BW HW monitor governor\n");
 		break;
@@ -875,8 +986,10 @@ static int devfreq_bw_hwmon_ev_handler(struct devfreq *df,
 	}
 
 out:
+#ifdef VENDOR_EDIT
+//cheng.huang@SRC.hypnus.2018.09.07. add to avoid race condition
 	mutex_unlock(&state_lock);
-
+#endif /*VENDOR_EDIT*/
 	return ret;
 }
 
@@ -931,6 +1044,11 @@ int register_bw_hwmon(struct device *dev, struct bw_hwmon *hwmon)
 	node->idle_mbps = 400;
 	node->mbps_zones[0] = 0;
 	node->hw = hwmon;
+
+#ifdef VENDOR_EDIT
+//cheng.huang@SRC.hypnus.2018.09.07. add to avoid race condition
+	mutex_init(&node->mon_lock);
+#endif
 
 	mutex_lock(&list_lock);
 	list_add_tail(&node->list, &hwmon_list);

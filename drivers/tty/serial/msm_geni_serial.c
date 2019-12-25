@@ -29,6 +29,10 @@
 #include <linux/slab.h>
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
+#ifdef VENDOR_EDIT
+//Nanwei.Deng@BSP.CHG.Basic 2018/05/01 add for console
+#include <soc/oppo/boot_mode.h>
+#endif /* VENDOR_EDIT */
 
 /* UART specific GENI registers */
 #define SE_UART_LOOPBACK_CFG		(0x22C)
@@ -129,6 +133,7 @@
 } while (0)
 
 #define DMA_RX_BUF_SIZE		(2048)
+
 #define UART_CONSOLE_RX_WM	(2)
 struct msm_geni_serial_port {
 	struct uart_port uport;
@@ -197,6 +202,61 @@ static atomic_t uart_line_id = ATOMIC_INIT(0);
 
 static struct msm_geni_serial_port msm_geni_console_port;
 static struct msm_geni_serial_port msm_geni_serial_ports[GENI_UART_NR_PORTS];
+#ifdef VENDOR_EDIT
+//Nanwei.Deng@BSP.CHG.Basic 2018/05/01  Add for debug console reg issue 969323*/
+bool boot_with_console(void)
+{
+#ifdef CONFIG_OPPO_ENG_BUILD
+	return false;
+#endif
+
+#ifdef CONFIG_OPPO_DAILY_BUILD
+	return true;
+#else
+
+	if(get_boot_mode() == MSM_BOOT_MODE__FACTORY)
+	{
+		return true;
+	}
+	else {
+		if(oem_get_uartlog_status() == true)
+		{
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+#endif /* CONFIG_OPPO_DAILY_BUILD */
+}
+EXPORT_SYMBOL(boot_with_console);
+#endif/*VENDOR_EDIT*/
+
+#ifdef VENDOR_EDIT
+/* Jianfeng.Qiu@PSW.MM.AudioDriver.Codec, 2018/05/15, Add for enale/disable HStty1 pin for smart mic */
+int msm_geni_iacore_uart_pinctrl_enable(int enable)
+{
+	int ret = 0;
+	struct msm_geni_serial_port *port = &msm_geni_serial_ports[1];
+	struct se_geni_rsc *rsc = &port->serial_rsc;
+
+	if (enable){
+		ret = pinctrl_select_state(rsc->geni_pinctrl, rsc->geni_gpio_active);
+		if (ret)
+			pr_err("%s: Error %d pinctrl_select_state\n", __func__, ret);
+	} else {
+		ret = pinctrl_select_state(rsc->geni_pinctrl, rsc->geni_gpio_sleep);
+		if (ret)
+			pr_err("%s: Error %d pinctrl_select_state\n", __func__, ret);
+	}
+	pr_debug("%s: enable:%d iacore uart: %s, wakeup_irq: %d, uport_irq:%d\n", __func__, enable,
+		port->name, port->wakeup_irq, port->uport.irq);
+	return ret;
+
+}
+EXPORT_SYMBOL(msm_geni_iacore_uart_pinctrl_enable);
+#endif /* VENDOR_EDIT */
 
 static void msm_geni_serial_config_port(struct uart_port *uport, int cfg_flags)
 {
@@ -1352,7 +1412,14 @@ static int msm_geni_serial_handle_dma_rx(struct uart_port *uport, bool drop_rx)
 	tport = &uport->state->port;
 	ret = tty_insert_flip_string(tport, (unsigned char *)(msm_port->rx_buf),
 				     rx_bytes);
+	#ifndef VENDOR_EDIT
+	/*Jianfeng.Qiu@PSW.MM.AudioDriver.1427784, 2018/07/14,
+	 *Modify for serial warning issue.
+	 */
 	if (ret != rx_bytes) {
+	#else /* VENDOR_EDIT */
+	if (ret != rx_bytes && (msm_port != &msm_geni_serial_ports[1])) {
+	#endif /* VENDOR_EDIT */
 		dev_err(uport->dev, "%s: ret %d rx_bytes %d\n", __func__,
 								ret, rx_bytes);
 		WARN_ON(1);
@@ -1441,6 +1508,7 @@ static irqreturn_t msm_geni_serial_isr(int isr, void *dev)
 	if (s_irq_status & S_RX_FIFO_WR_ERR_EN) {
 		uport->icount.overrun++;
 		tty_insert_flip_char(tport, 0, TTY_OVERRUN);
+
 		IPC_LOG_MSG(msm_port->ipc_log_misc,
 			"%s.sirq 0x%x buf_overrun:%d\n",
 			__func__, s_irq_status, uport->icount.buf_overrun);
@@ -1595,8 +1663,20 @@ static void msm_geni_serial_shutdown(struct uart_port *uport)
 	if (uart_console(uport)) {
 		console_stop(uport->cons);
 	} else {
+		#ifndef VENDOR_EDIT
+		/*Jianfeng.Qiu@PSW.MM.AudioDriver.Codec.1427784, 2018/07/14,
+		 *Modify for smartmic stabiltiy.
+		 */
 		msm_geni_serial_power_on(uport);
 		wait_for_transfers_inflight(uport);
+		#else /* VENDOR_EDIT */
+		if (msm_port != &msm_geni_serial_ports[1]) {
+			msm_geni_serial_power_on(uport);
+			wait_for_transfers_inflight(uport);
+		} else {
+			IPC_LOG_MSG(msm_port->ipc_log_misc, "bypass msm_geni_serial_power_on\n");
+		}
+		#endif /* VENDOR_EDIT */
 	}
 
 	disable_irq(uport->irq);

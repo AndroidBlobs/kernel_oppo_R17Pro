@@ -427,6 +427,46 @@ void tune_lmk_param(int *other_free, int *other_file, struct shrink_control *sc)
 	}
 }
 
+#if 0
+/*yixue.ge@PSW.BSP.Kernel.Driver 20170808 modify for get some data about performance */
+static ssize_t lowmem_kill_count_proc_read(struct file *file, char __user *buf,
+		size_t count,loff_t *off)
+{
+	char page[256] = {0};
+	int len = 0;
+
+	if (!lmk_cnt_enable)
+		return 0;
+
+	len = sprintf(&page[len],"adaptive_lowmem_kill_count:%lu\ntotal_lowmem_kill_count:%lu\n",
+				adaptive_lowmem_kill_count, tatal_lowmem_kill_count);
+
+	if(len > *off)
+	   len -= *off;
+	else
+	   len = 0;
+
+	if(copy_to_user(buf,page,(len < count ? len : count))){
+	   return -EFAULT;
+	}
+	*off += len < count ? len : count;
+	return (len < count ? len : count);
+
+}
+
+struct file_operations lowmem_kill_count_proc_fops = {
+	.read = lowmem_kill_count_proc_read,
+};
+
+static int __init setup_lowmem_killinfo(void)
+{
+
+	proc_create("lowmemkillcounts", S_IRUGO, NULL, &lowmem_kill_count_proc_fops);
+	return 0;
+}
+module_init(setup_lowmem_killinfo);
+#endif /* VENDOR_EDIT */
+
 static void mark_lmk_victim(struct task_struct *tsk)
 {
 	struct mm_struct *mm = tsk->mm;
@@ -615,8 +655,15 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 			(long)(PAGE_SIZE / 1024),
 			sc->gfp_mask);
 
-		if (lowmem_debug_level >= 2 && selected_oom_score_adj == 0) {
+#ifdef VENDOR_EDIT
+/*huacai.zhou@PSW.BSP.Kernel.MM. 2018/01/15, modify for show more meminfo*/
 			show_mem(SHOW_MEM_FILTER_NODES);
+#endif /*VENDOR_EDIT*/
+		if (lowmem_debug_level >= 2 && selected_oom_score_adj == 0) {
+#ifndef VENDOR_EDIT
+/*huacai.zhou@PSW.BSP.Kernel.MM. 2018/01/15, modify for show more meminfo*/
+			show_mem(SHOW_MEM_FILTER_NODES);
+#endif /*VENDOR_EDIT*/
 			show_mem_call_notifiers();
 			dump_tasks(NULL, NULL);
 		}
@@ -748,4 +795,3 @@ module_param_array_named(minfree, lowmem_minfree, uint, &lowmem_minfree_size,
 			 S_IRUGO | S_IWUSR);
 module_param_named(debug_level, lowmem_debug_level, uint, S_IRUGO | S_IWUSR);
 module_param_named(lmk_fast_run, lmk_fast_run, int, S_IRUGO | S_IWUSR);
-

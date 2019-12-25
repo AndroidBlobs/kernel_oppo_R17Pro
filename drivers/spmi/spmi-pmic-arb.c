@@ -61,6 +61,7 @@
 
 #define SPMI_PROTOCOL_IRQ_STATUS	0x6000
 
+
 /* Channel Status fields */
 enum pmic_arb_chnl_status {
 	PMIC_ARB_STATUS_DONE	= BIT(0),

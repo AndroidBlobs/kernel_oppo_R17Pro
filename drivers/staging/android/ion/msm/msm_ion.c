@@ -122,7 +122,14 @@ static struct ion_heap_desc ion_heap_meta[] = {
 	{
 		.id	= ION_SECURE_DISPLAY_HEAP_ID,
 		.name	= ION_SECURE_DISPLAY_HEAP_NAME,
+	},
+#ifdef VENDOR_EDIT
+/* oujinrong@BSP.Fingerprint.Secure 2018/12/15, add QCOM patch for secure dsp */
+	{
+		.id	= ION_SECURE_CARVEOUT_HEAP_ID,
+		.name	= ION_SECURE_CARVEOUT_HEAP_NAME,
 	}
+#endif /* VENDOR_EDIT */
 };
 #endif
 
@@ -136,6 +143,22 @@ static int msm_ion_lowmem_notifier(struct notifier_block *nb,
 static struct notifier_block msm_ion_nb = {
 	.notifier_call = msm_ion_lowmem_notifier,
 };
+
+#ifdef VENDOR_EDIT
+//fangpan@Swdp.shanghai, 2016/02/02, add ion memory status interface
+struct ion_heap* get_system_ion_heap(enum ion_heap_type heap_type)
+{
+	int i = 0;
+	if(heaps != NULL) {
+		for(i = 0; i < num_heaps; i++)
+			if(heaps[i] && heaps[i]->type == heap_type)
+				return heaps[i];
+	}
+	return NULL;
+
+}
+EXPORT_SYMBOL(get_system_ion_heap);
+#endif
 
 struct ion_client *msm_ion_client_create(const char *name)
 {
@@ -443,6 +466,10 @@ static struct heap_types_info {
 	MAKE_HEAP_TYPE_MAPPING(SYSTEM),
 	MAKE_HEAP_TYPE_MAPPING(SYSTEM_CONTIG),
 	MAKE_HEAP_TYPE_MAPPING(CARVEOUT),
+#ifdef VENDOR_EDIT
+/* oujinrong@BSP.Fingerprint.Secure 2018/12/15, add QCOM patch for secure dsp */
+	MAKE_HEAP_TYPE_MAPPING(SECURE_CARVEOUT),
+#endif /* VENDOR_EDIT */
 	MAKE_HEAP_TYPE_MAPPING(CHUNK),
 	MAKE_HEAP_TYPE_MAPPING(DMA),
 	MAKE_HEAP_TYPE_MAPPING(SECURE_DMA),
@@ -659,7 +686,13 @@ bool is_secure_vmid_valid(int vmid)
 		vmid == VMID_CP_CAMERA_PREVIEW ||
 		vmid == VMID_CP_SPSS_SP ||
 		vmid == VMID_CP_SPSS_SP_SHARED ||
+#ifdef VENDOR_EDIT
+/* oujinrong@BSP.Fingerprint.Secure 2018/12/15, add QCOM patch for secure dsp */
+		vmid == VMID_CP_SPSS_HLOS_SHARED ||
+		vmid == VMID_CP_CDSP);
+#else
 		vmid == VMID_CP_SPSS_HLOS_SHARED);
+#endif /* VENDOR_EDIT */
 }
 
 unsigned int count_set_bits(unsigned long val)
@@ -709,6 +742,11 @@ int get_secure_vmid(unsigned long flags)
 		return VMID_CP_SPSS_SP_SHARED;
 	if (flags & ION_FLAG_CP_SPSS_HLOS_SHARED)
 		return VMID_CP_SPSS_HLOS_SHARED;
+#ifdef VENDOR_EDIT
+/* oujinrong@BSP.Fingerprint.Secure 2018/12/15, add QCOM patch for secure dsp */
+	if (flags & ION_FLAG_CP_CDSP)
+		return VMID_CP_CDSP;
+#endif /* VENDOR_EDIT */
 	return -EINVAL;
 }
 
@@ -1017,6 +1055,12 @@ static struct ion_heap *msm_ion_heap_create(struct ion_platform_heap *heap_data)
 	case ION_HEAP_TYPE_HYP_CMA:
 		heap = ion_cma_secure_heap_create(heap_data);
 		break;
+#ifdef VENDOR_EDIT
+/* oujinrong@BSP.Fingerprint.Secure 2018/12/15, add QCOM patch for secure dsp */
+	case ION_HEAP_TYPE_SECURE_CARVEOUT:
+		heap = ion_secure_carveout_heap_create(heap_data);
+		break;
+#endif /* VENDOR_EDIT */
 	default:
 		heap = ion_heap_create(heap_data);
 	}
@@ -1052,6 +1096,12 @@ static void msm_ion_heap_destroy(struct ion_heap *heap)
 	case ION_HEAP_TYPE_HYP_CMA:
 		ion_cma_secure_heap_destroy(heap);
 		break;
+#ifdef VENDOR_EDIT
+/* oujinrong@BSP.Fingerprint.Secure 2018/12/15, add QCOM patch for secure dsp */
+	case ION_HEAP_TYPE_SECURE_CARVEOUT:
+		ion_secure_carveout_heap_destroy(heap);
+		break;
+#endif /* VENDOR_EDIT*/
 	default:
 		ion_heap_destroy(heap);
 	}
