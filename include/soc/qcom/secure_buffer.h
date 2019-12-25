@@ -41,6 +41,10 @@ enum vmid {
 	VMID_CP_CAMERA_PREVIEW = 0x1D,
 	VMID_CP_SPSS_SP_SHARED = 0x22,
 	VMID_CP_SPSS_HLOS_SHARED = 0x24,
+#ifdef VENDOR_EDIT
+/* oujinrong@BSP.Fingerprint.Secure 2018/12/15, add QCOM patch for secure dsp */
+	VMID_CP_CDSP = 0x2A,
+#endif /* VENDOR_EDIT */
 	VMID_LAST,
 	VMID_INVAL = -1
 };

@@ -16,7 +16,17 @@
 #define CAM_RELEASE_DEV                         (CAM_COMMON_OPCODE_BASE + 0x6)
 #define CAM_SD_SHUTDOWN                         (CAM_COMMON_OPCODE_BASE + 0x7)
 #define CAM_FLUSH_REQ                           (CAM_COMMON_OPCODE_BASE + 0x8)
+#ifndef VENDOR_EDIT
+/*Modified by Zhengrong.Zhang@Cam.Drv, 20180421, for [ois calibration]*/
 #define CAM_COMMON_OPCODE_MAX                   (CAM_COMMON_OPCODE_BASE + 0x9)
+#else
+#define CAM_GET_FUSE_ID                         (CAM_COMMON_OPCODE_BASE + 0x9)
+#define CAM_GET_OIS_GYRO_OFFSET                 (CAM_COMMON_OPCODE_BASE + 0xA)
+#define CAM_GET_OIS_HALL_POSITION               (CAM_COMMON_OPCODE_BASE + 0xB)
+/*Modified by Yingpiao.Lin@Cam.Drv, 20180717, for iris flow*/
+#define CAM_VENDOR_DATA                         (CAM_COMMON_OPCODE_BASE + 0xC)
+#define CAM_COMMON_OPCODE_MAX                   (CAM_COMMON_OPCODE_BASE + 0xD)
+#endif
 
 #define CAM_EXT_OPCODE_BASE                     0x200
 #define CAM_CONFIG_DEV_EXTERNAL                 (CAM_EXT_OPCODE_BASE + 0x1)
@@ -78,6 +88,11 @@ struct cam_control {
 #define VIDIOC_CAM_CONTROL \
 	_IOWR('V', BASE_VIDIOC_PRIVATE, struct cam_control)
 
+#ifdef VENDOR_EDIT
+/*add by hongbo.dai@Camera,20180326 for AT test*/
+#define VIDIOC_CAM_FTM_POWNER_UP 0
+#define VIDIOC_CAM_FTM_POWNER_DOWN 1
+#endif
 /**
  * struct cam_hw_version - Structure for HW version of camera devices
  *

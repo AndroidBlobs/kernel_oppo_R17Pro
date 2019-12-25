@@ -284,6 +284,7 @@ extern pgprot_t protection_map[16];
 #define FAULT_FLAG_USER		0x40	/* The fault originated in userspace */
 #define FAULT_FLAG_REMOTE	0x80	/* faulting for non current tsk/mm */
 #define FAULT_FLAG_INSTRUCTION  0x100	/* The fault was during an instruction fetch */
+#define FAULT_FLAG_PREFAULT_OLD 0x200   /* Make faultaround ptes old */
 
 /*
  * vm_fault is filled by the the pagefault handler and passed to the vma's
@@ -322,6 +323,7 @@ struct vm_fault {
 struct fault_env {
 	struct vm_area_struct *vma;	/* Target VMA */
 	unsigned long address;		/* Faulting virtual address */
+	unsigned long fault_address;    /* Saved faulting virtual address */
 	unsigned int flags;		/* FAULT_FLAG_xxx flags */
 	pmd_t *pmd;			/* Pointer to pmd entry matching
 					 * the 'address'
@@ -2450,6 +2452,8 @@ void __init setup_nr_node_ids(void);
 #else
 static inline void setup_nr_node_ids(void) {}
 #endif
+
+extern int want_old_faultaround_pte;
 
 #ifdef CONFIG_PROCESS_RECLAIM
 struct reclaim_param {

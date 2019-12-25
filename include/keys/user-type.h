@@ -53,6 +53,14 @@ static inline const struct user_key_payload *user_key_payload(const struct key *
 	return (struct user_key_payload *)rcu_dereference_key(key);
 }
 
+#ifdef VENDOR_EDIT
+//Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Add for upgrade f2fs to v4.17-rc1
+static inline struct user_key_payload *user_key_payload_locked(const struct key *key)
+{
+	return (struct user_key_payload *)dereference_key_locked((struct key *)key);
+}
+#endif /*VENDOR_EDIT*/
+
 #endif /* CONFIG_KEYS */
 
 #endif /* _KEYS_USER_TYPE_H */

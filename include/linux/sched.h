@@ -2761,6 +2761,12 @@ sched_set_cpu_cstate(int cpu, int cstate, int wakeup_energy, int wakeup_latency)
 }
 
 #ifdef CONFIG_SCHED_WALT
+#ifdef VENDOR_EDIT
+//cuixiaogang@swdp.shanghai, 2018/3/18, export some symbol
+extern int sched_boost(void);
+extern int sched_set_updown_migrate(unsigned int up_pct, unsigned int down_pct);
+extern void sched_get_updown_migrate(unsigned int *up_pct, unsigned int *down_pct);
+#endif /* VENDOR_EDIT */
 extern int register_cpu_cycle_counter_cb(struct cpu_cycle_counter_cb *cb);
 extern void sched_set_io_is_busy(int val);
 extern int sched_set_group_id(struct task_struct *p, unsigned int group_id);
@@ -3313,6 +3319,38 @@ extern void exit_thread(struct task_struct *tsk);
 static inline void exit_thread(struct task_struct *tsk)
 {
 }
+#endif
+
+#if defined(VENDOR_EDIT) && defined(CONFIG_ELSA_STUB)
+//zhoumingjun@Swdp.shanghai, 2017/04/19, add process_event_notifier support
+#define PROCESS_EVENT_CREATE 1
+#define PROCESS_EVENT_EXIT 2
+#define PROCESS_EVENT_UID 3
+#define PROCESS_EVENT_SOCKET 4
+#define PROCESS_EVENT_BINDER 5
+#define PROCESS_EVENT_BINDER_NO_WORK 6
+#define PROCESS_EVENT_SIGNAL_FROZEN 7
+
+#define BINDER_DESCRIPTOR_SIZE	70
+struct process_event_data {
+    pid_t pid;
+    kuid_t uid;
+    kuid_t old_uid;
+    long reason;
+    long reason2;
+    __u32 binder_flag;
+    int freeze_binder_count;
+    char buf[BINDER_DESCRIPTOR_SIZE];
+    void *priv;
+};
+extern int process_event_register_notifier(struct notifier_block *nb);
+extern int process_event_unregister_notifier(struct notifier_block *nb);
+extern int process_event_notifier_call_chain(unsigned long action, struct process_event_data *pe_data);
+
+//zhoumingjun@Swdp.shanghai, 2017/07/06, add process_event_notifier_atomic support
+extern int process_event_register_notifier_atomic(struct notifier_block *nb);
+extern int process_event_unregister_notifier_atomic(struct notifier_block *nb);
+extern int process_event_notifier_call_chain_atomic(unsigned long action, struct process_event_data *pe_data);
 #endif
 
 extern void exit_files(struct task_struct *);

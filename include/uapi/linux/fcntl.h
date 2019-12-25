@@ -42,6 +42,20 @@
 #define F_SEAL_WRITE	0x0008	/* prevent writes */
 /* (1U << 31) is reserved for signed error codes */
 
+#ifdef VENDOR_EDIT
+//Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Add for upgrade f2fs to v4.17-rc1
+/*
+ * Valid hint values for F_{GET,SET}_RW_HINT. 0 is "not set", or can be
+ * used to clear any hints previously set.
+ */
+#define RWF_WRITE_LIFE_NOT_SET	0
+#define RWH_WRITE_LIFE_NONE	1
+#define RWH_WRITE_LIFE_SHORT	2
+#define RWH_WRITE_LIFE_MEDIUM	3
+#define RWH_WRITE_LIFE_LONG	4
+#define RWH_WRITE_LIFE_EXTREME	5
+#endif /*VENDOR_EDIT*/
+
 /*
  * Types of directory notifications that may be requested.
  */

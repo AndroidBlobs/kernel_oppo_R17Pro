@@ -64,6 +64,21 @@ struct cam_actuator_query_cap {
 	uint32_t            reserved;
 } __attribute__((packed));
 
+#ifdef VENDOR_EDIT
+/*Modified by Yingpiao.Lin@Cam.Drv, 20180717, for iris flow*/
+/**
+ * struct cam_actuator_query_cap - capabilities info for actuator
+ *
+ * @slot_info        :  Indicates about the slotId or cell Index
+ * @reserved
+ */
+struct cam_iris_setting {
+	uint32_t            apertureControl;
+	int32_t             get_hall_value;
+	uint32_t            reserved;
+} __attribute__((packed));
+#endif
+
 /**
  * struct cam_eeprom_query_cap_t - capabilities info for eeprom
  *

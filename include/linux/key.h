@@ -373,6 +373,13 @@ static inline bool key_is_negative(const struct key *key)
 	(rcu_dereference_protected((KEY)->payload.rcu_data0,		\
 				   rwsem_is_locked(&((struct key *)(KEY))->sem)))
 
+#ifdef VENDOR_EDIT
+//Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Add for upgrade f2fs to v4.17-rc1
+#define dereference_key_locked(KEY)					\
+	(rcu_dereference_protected((KEY)->payload.rcu_data0,		\
+				   rwsem_is_locked(&((struct key *)(KEY))->sem)))
+#endif /*VENDOR_EDIT*/
+				   
 #define rcu_assign_keypointer(KEY, PAYLOAD)				\
 do {									\
 	rcu_assign_pointer((KEY)->payload.rcu_data0, (PAYLOAD));	\

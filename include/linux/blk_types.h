@@ -25,6 +25,10 @@ typedef void (bio_end_io_t) (struct bio *);
 struct bio {
 	struct bio		*bi_next;	/* request queue link */
 	struct block_device	*bi_bdev;
+#ifdef VENDOR_EDIT
+//Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Add for upgrade f2fs to v4.17-rc1
+	unsigned short		bi_write_hint;
+#endif /*VENDOR_EDIT*/
 	int			bi_error;
 	unsigned int		bi_opf;		/* bottom bits req flags,
 						 * top bits REQ_OP. Use

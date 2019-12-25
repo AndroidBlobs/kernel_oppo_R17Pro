@@ -68,12 +68,15 @@ struct fscrypt_context {
 #define FS_KEY_DESC_PREFIX		"fscrypt:"
 #define FS_KEY_DESC_PREFIX_SIZE		8
 
+#ifndef VENDOR_EDIT
+//Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Delete for upgrade f2fs to v4.17-rc1
 /* This is passed in from userspace into the kernel keyring */
 struct fscrypt_key {
 	u32 mode;
 	u8 raw[FS_MAX_KEY_SIZE];
 	u32 size;
 } __packed;
+#endif /*VENDOR_EDIT*/
 
 struct fscrypt_info {
 	u8 ci_data_mode;

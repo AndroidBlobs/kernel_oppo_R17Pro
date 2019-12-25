@@ -20,6 +20,10 @@
 #include <linux/rwsem.h>
 #include <linux/capability.h>
 #include <linux/semaphore.h>
+#ifdef VENDOR_EDIT
+//Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Add for upgrade f2fs to v4.17-rc1
+#include <linux/fcntl.h>
+#endif /*VENDOR_EDIT*/
 #include <linux/fiemap.h>
 #include <linux/rculist_bl.h>
 #include <linux/atomic.h>
@@ -142,6 +146,12 @@ typedef int (dio_iodone_t)(struct kiocb *iocb, loff_t offset,
 
 /* File was opened by fanotify and shouldn't generate fanotify events */
 #define FMODE_NONOTIFY		((__force fmode_t)0x4000000)
+
+#ifdef VENDOR_EDIT
+//Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Add for upgrade f2fs to v4.17-rc1
+/* File is capable of returning -EAGAIN if I/O will block */
+#define FMODE_NOWAIT		((__force fmode_t)0x8000000)
+#endif /*VENDOR_EDIT*/
 
 /*
  * Flag for rw_copy_check_uvector and compat_rw_copy_check_uvector
@@ -315,6 +325,21 @@ struct page;
 struct address_space;
 struct writeback_control;
 
+#ifdef VENDOR_EDIT
+//Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Add for upgrade f2fs to v4.17-rc1
+/*
+ * Write life time hint values.
+ */
+enum rw_hint {
+	WRITE_LIFE_NOT_SET	= 0,
+	WRITE_LIFE_NONE		= RWH_WRITE_LIFE_NONE,
+	WRITE_LIFE_SHORT	= RWH_WRITE_LIFE_SHORT,
+	WRITE_LIFE_MEDIUM	= RWH_WRITE_LIFE_MEDIUM,
+	WRITE_LIFE_LONG		= RWH_WRITE_LIFE_LONG,
+	WRITE_LIFE_EXTREME	= RWH_WRITE_LIFE_EXTREME,
+};
+#endif /*VENDOR_EDIT*/
+
 #define IOCB_EVENTFD		(1 << 0)
 #define IOCB_APPEND		(1 << 1)
 #define IOCB_DIRECT		(1 << 2)
@@ -322,6 +347,10 @@ struct writeback_control;
 #define IOCB_DSYNC		(1 << 4)
 #define IOCB_SYNC		(1 << 5)
 #define IOCB_WRITE		(1 << 6)
+#ifdef VENDOR_EDIT
+//Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Add for upgrade f2fs to v4.17-rc1
+#define IOCB_NOWAIT		(1 << 7)
+#endif /*VENDOR_EDIT*/
 
 struct kiocb {
 	struct file		*ki_filp;
@@ -329,6 +358,10 @@ struct kiocb {
 	void (*ki_complete)(struct kiocb *iocb, long ret, long ret2);
 	void			*private;
 	int			ki_flags;
+#ifdef VENDOR_EDIT
+//Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Add for upgrade f2fs to v4.17-rc1
+	enum rw_hint		ki_hint;
+#endif /*VENDOR_EDIT*/
 };
 
 static inline bool is_sync_kiocb(struct kiocb *kiocb)
@@ -643,6 +676,10 @@ struct inode {
 	spinlock_t		i_lock;	/* i_blocks, i_bytes, maybe i_size */
 	unsigned short          i_bytes;
 	unsigned int		i_blkbits;
+#ifdef VENDOR_EDIT
+//Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Add for upgrade f2fs to v4.17-rc1
+	enum rw_hint		i_write_hint;
+#endif /*VENDOR_EDIT*/
 	blkcnt_t		i_blocks;
 
 #ifdef __NEED_I_SIZE_ORDERED
@@ -701,6 +738,11 @@ struct inode {
 
 #if IS_ENABLED(CONFIG_FS_ENCRYPTION)
 	struct fscrypt_info	*i_crypt_info;
+//#ifdef VENDOR_EDIT
+//Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Add for upgrade f2fs to v4.17-rc1
+#elif IS_ENABLED(CONFIG_FS_F2FSCRYPTO_ENCRYPTION)
+	struct fscrypt_info	*i_crypt_info;
+//#endif /*VENDOR_EDIT*/
 #endif
 
 	void			*i_private; /* fs or device private pointer */
@@ -1858,6 +1900,10 @@ struct super_operations {
 #else
 #define S_DAX		0	/* Make all the DAX code disappear */
 #endif
+#ifdef VENDOR_EDIT
+//Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Add for upgrade f2fs to v4.17-rc1
+#define S_ENCRYPTED	16384	/* Encrypted file (using fs/crypto/) */
+#endif /*VENDOR_EDIT*/
 
 /*
  * Note that nosuid etc flags are inode-specific: setting some file-system
@@ -1896,6 +1942,10 @@ struct super_operations {
 #define IS_AUTOMOUNT(inode)	((inode)->i_flags & S_AUTOMOUNT)
 #define IS_NOSEC(inode)		((inode)->i_flags & S_NOSEC)
 #define IS_DAX(inode)		((inode)->i_flags & S_DAX)
+#ifdef VENDOR_EDIT
+//Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Add for upgrade f2fs to v4.17-rc1
+#define IS_ENCRYPTED(inode)	((inode)->i_flags & S_ENCRYPTED)
+#endif /*VENDOR_EDIT*/
 
 #define IS_WHITEOUT(inode)	(S_ISCHR(inode->i_mode) && \
 				 (inode)->i_rdev == WHITEOUT_DEV)
