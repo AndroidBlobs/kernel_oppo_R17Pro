@@ -886,6 +886,11 @@ int acc_ctrlrequest(struct usb_composite_dev *cdev,
 	u16	w_length = le16_to_cpu(ctrl->wLength);
 	unsigned long flags;
 
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@PSW.BSP.CHG.Basic, 2018/05/25, sjc Add for USB(1+) */
+	if (!dev)
+		goto err;
+#endif
 /*
 	printk(KERN_INFO "acc_ctrlrequest "
 			"%02x.%02x v%04x i%04x l%u\n",

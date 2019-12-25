@@ -672,6 +672,22 @@ static int ffs_ep0_open(struct inode *inode, struct file *file)
 
 	/* to get updated opened atomic variable value */
 	smp_mb__before_atomic();
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@PSW.BSP.CHG.Basic, 2018/05/25, sjc Modify for USB(1+) */
+	if (atomic_read(&ffs->opened)) {
+		pr_err("ep0 is already opened!\n");
+		return -EBUSY;
+	}
+
+	if (unlikely(ffs->state == FFS_CLOSING)) {
+		pr_err("FFS_CLOSING!\n");
+		return -EBUSY;
+	}
+
+	file->private_data = ffs;
+	ffs_data_opened(ffs);
+	pr_info("ep0_open success!\n");
+#else
 	if (atomic_read(&ffs->opened))
 		return -EBUSY;
 
@@ -680,6 +696,7 @@ static int ffs_ep0_open(struct inode *inode, struct file *file)
 
 	file->private_data = ffs;
 	ffs_data_opened(ffs);
+#endif//VENDOR_EDIT
 
 	return 0;
 }

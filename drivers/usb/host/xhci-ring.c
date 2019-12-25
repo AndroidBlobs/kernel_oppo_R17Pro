@@ -70,6 +70,10 @@
 #include "xhci.h"
 #include "xhci-trace.h"
 #include "xhci-mtk.h"
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@PSW.BSP.CHG.Basic, 2018/05/25, sjc Add for handle xiaomi typec headset dsp crash issue(1+) */
+extern void kick_usbpd_vbus_sm(void);
+#endif
 
 /*
  * Returns zero if the TRB isn't in this segment, otherwise it returns the DMA
@@ -259,9 +263,20 @@ void xhci_ring_cmd_db(struct xhci_hcd *xhci)
 	/* Flush PCI posted writes */
 	readl(&xhci->dba->doorbell[0]);
 }
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@PSW.BSP.CHG.Basic, 2018/05/25, sjc Add for handle xiaomi typec headset dsp crash issue(1+) */
+extern unsigned int connected_usb_idVendor;
+extern unsigned int connected_usb_idProduct;
+#endif
 
 static bool xhci_mod_cmd_timer(struct xhci_hcd *xhci, unsigned long delay)
 {
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@PSW.BSP.CHG.Basic, 2018/05/25, sjc Add for handle xiaomi typec headset dsp crash issue(1+) */
+	if ((0x2717 == connected_usb_idVendor) && (0x3801 == connected_usb_idProduct)) {
+		delay = 500;
+	}
+#endif
 	return mod_delayed_work(system_wq, &xhci->cmd_timer, delay);
 }
 
@@ -340,10 +355,20 @@ static int xhci_abort_cmd_ring(struct xhci_hcd *xhci, unsigned long flags)
 	 * seconds), then it should assume that the there are
 	 * larger problems with the xHC and assert HCRST.
 	 */
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@PSW.BSP.CHG.Basic, 2018/05/25, sjc Add for handle xiaomi typec headset dsp crash issue(1+) */
+	ret = xhci_handshake_check_state(xhci, &xhci->op_regs->cmd_ring,
+			CMD_RING_RUNNING, 0, 1 * 1000 * 1000);
+#else
 	ret = xhci_handshake_check_state(xhci, &xhci->op_regs->cmd_ring,
 			CMD_RING_RUNNING, 0, 5 * 1000 * 1000);
+#endif//VENDOR_EDIT
 	if (ret < 0) {
 		/* we are about to kill xhci, give it one more chance */
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@PSW.BSP.CHG.Basic, 2018/05/25, sjc Modify for handle xiaomi typec headset dsp crash issue(1+) */
+		return -1;
+#else
 		xhci_write_64(xhci, temp_64 | CMD_RING_ABORT,
 			      &xhci->op_regs->cmd_ring);
 		udelay(1000);
@@ -357,6 +382,7 @@ static int xhci_abort_cmd_ring(struct xhci_hcd *xhci, unsigned long flags)
 			xhci_halt(xhci);
 			return -ESHUTDOWN;
 		}
+#endif//VENDOR_EDIT
 	}
 	/*
 	 * Writing the CMD_RING_ABORT bit should cause a cmd completion event,
@@ -1300,6 +1326,16 @@ void xhci_handle_command_timeout(struct work_struct *work)
 		xhci->cmd_ring_state = CMD_RING_STATE_ABORTED;
 		xhci_dbg(xhci, "Command timeout\n");
 		ret = xhci_abort_cmd_ring(xhci, flags);
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@PSW.BSP.CHG.Basic, 2018/05/25, sjc Add for handle xiaomi typec headset dsp crash issue(1+) */
+		if ((ret == -1) && (0x2717 == connected_usb_idVendor) && (0x3801 == connected_usb_idProduct)) {
+			xhci_err(xhci, "Abort command ring failed reset usb device\n");
+			xhci_cleanup_command_queue(xhci);
+			spin_unlock_irqrestore(&xhci->lock, flags);
+			kick_usbpd_vbus_sm();
+			return;
+		}
+#endif
 		if (unlikely(ret == -ESHUTDOWN)) {
 			xhci_err(xhci, "Abort command ring failed\n");
 			xhci_cleanup_command_queue(xhci);
@@ -2751,6 +2787,12 @@ irqreturn_t xhci_irq(struct usb_hcd *hcd)
 	if (status == 0xffffffff)
 		goto hw_died;
 
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@PSW.BSP.CHG.Basic, 2018/05/25, sjc Add for USB(1+) */
+	if (status & STS_HCE) {
+		xhci_warn(xhci, "WARNING: Host controller Error\n");
+	}
+#endif
 	if (!(status & STS_EINT)) {
 		spin_unlock(&xhci->lock);
 		return IRQ_NONE;
