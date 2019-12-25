@@ -61,6 +61,11 @@
 #define VMID_ADSP_Q6    6
 #define DEBUGFS_SIZE 1024
 
+#ifdef VENDOR_EDIT
+/* oujinrong@BSP.Fingerprint.Secure 2018/12/15, add QCOM patch for secure dsp */
+#define FASTRPC_DMAHANDLE_NOMAP (16)
+#endif /* VENDOR_EDIT */
+
 #define AUDIO_PDR_SERVICE_LOCATION_CLIENT_NAME   "audio_pdr_adsprpc"
 #define AUDIO_PDR_ADSP_SERVICE_NAME              "avs/audio"
 
@@ -683,6 +688,12 @@ static void fastrpc_mmap_free(struct fastrpc_mmap *map, uint32_t flags)
 			dma_free_coherent(me->dev, map->size,
 				(void *)map->va, (dma_addr_t)map->phys);
 		}
+#ifdef VENDOR_EDIT
+/* oujinrong@BSP.Fingerprint.Secure 2018/12/15, add QCOM patch for secure dsp */
+	} else if (map->flags == FASTRPC_DMAHANDLE_NOMAP) {
+		if (!IS_ERR_OR_NULL(map->handle))
+			ion_free(fl->apps->client, map->handle);
+#endif /* VENDOR_EDIT */
 	} else {
 		int destVM[1] = {VMID_HLOS};
 		int destVMperm[1] = {PERM_READ | PERM_WRITE | PERM_EXEC};
@@ -762,6 +773,30 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd,
 		map->phys = (uintptr_t)region_phys;
 		map->size = len;
 		map->va = (uintptr_t)region_vaddr;
+#ifdef VENDOR_EDIT
+/* oujinrong@BSP.Fingerprint.Secure 2018/12/15, add QCOM patch for secure dsp */
+	} else if (mflags == FASTRPC_DMAHANDLE_NOMAP) {
+		ion_phys_addr_t iphys;
+
+		VERIFY(err, !IS_ERR_OR_NULL(map->handle =
+				ion_import_dma_buf_fd(fl->apps->client, fd)));
+		if (err)
+			goto bail;
+
+		map->uncached = 1;
+		map->buf = NULL;
+		map->attach = NULL;
+		map->table = NULL;
+		map->va = 0;
+		map->phys = 0;
+
+		err = ion_phys(fl->apps->client, map->handle,
+			&iphys, &map->size);
+		if (err)
+			goto bail;
+		map->phys = (uint64_t)iphys;
+		pr_info("adsprpc: physical address:%llx\n", map->phys);
+#endif /* VENDOR_EDIT */
 	} else {
 		if (map->attr && (map->attr & FASTRPC_ATTR_KEEP_MAP)) {
 			pr_info("adsprpc: buffer mapped with persist attr %x\n",
@@ -1358,8 +1393,18 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 	handles = REMOTE_SCALARS_INHANDLES(sc) + REMOTE_SCALARS_OUTHANDLES(sc);
 	mutex_lock(&ctx->fl->fl_map_mutex);
 	for (i = bufs; i < bufs + handles; i++) {
+#ifdef VENDOR_EDIT
+/* oujinrong@BSP.Fingerprint.Secure 2018/12/15, add QCOM patch for secure dsp */
+		int dmaflags = 0;
+
+		if (ctx->attrs && (ctx->attrs[i] & FASTRPC_DMAHANDLE_NOMAP))
+			dmaflags = FASTRPC_DMAHANDLE_NOMAP;
+		VERIFY(err, !fastrpc_mmap_create(ctx->fl, ctx->fds[i],
+				FASTRPC_ATTR_NOVA, 0, 0, dmaflags, &ctx->maps[i]));
+#else
 		VERIFY(err, !fastrpc_mmap_create(ctx->fl, ctx->fds[i],
 				FASTRPC_ATTR_NOVA, 0, 0, 0, &ctx->maps[i]));
+#endif /* VENDOR_EDIT */
 		if (err) {
 			mutex_unlock(&ctx->fl->fl_map_mutex);
 			goto bail;
@@ -3475,6 +3520,7 @@ static int fastrpc_get_service_location_notify(struct notifier_block *nb,
 		} else if ((!strcmp(spd->spdname, "sensors_pdr_adsprpc"))
 					&& (!strcmp(pdr->domain_list[i].name,
 					"msm/adsp/sensor_pd"))) {
+
 			goto pdr_register;
 		}
 	}
