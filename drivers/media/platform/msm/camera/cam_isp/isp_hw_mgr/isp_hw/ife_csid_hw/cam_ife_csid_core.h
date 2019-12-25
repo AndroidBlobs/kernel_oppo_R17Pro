@@ -435,6 +435,8 @@ struct cam_ife_csid_path_cfg {
  * @csid_debug:               csid debug information to enable the SOT, EOT,
  *                            SOF, EOF, measure etc in the csid hw
  * @clk_rate                  Clock rate
+ * @error_irq_count           Error IRQ count, if continuous error irq comes
+ *                            need to stop the CSID and mask interrupts.
  *
  */
 struct cam_ife_csid_hw {
@@ -456,6 +458,12 @@ struct cam_ife_csid_hw {
 	struct completion    csid_rdin_complete[CAM_IFE_CSID_RDI_MAX];
 	uint64_t                         csid_debug;
 	uint64_t                         clk_rate;
+	#ifdef VENDOR_EDIT
+	/* houyujun@Camera.Driver, 2018/05/23, Add for [CSID cause dump] */
+	uint32_t                         error_irq_count;
+	/* Xinlan.He@camera modify, 2018/07/10, add debug info for sof_freeze */
+	uint32_t                         pkg_show_cnt;
+	#endif
 };
 
 int cam_ife_csid_hw_probe_init(struct cam_hw_intf  *csid_hw_intf,

@@ -17,6 +17,128 @@
 #include "cam_soc_util.h"
 #include "cam_trace.h"
 
+#ifdef VENDOR_EDIT
+/*Jinshui.Liu@Camera.Driver, 2018/06/23, add for [tof watchdog]*/
+int tof_watchdog_goio = -1;
+struct hrtimer tof_watchdog_timer;
+#endif
+
+/* add by likelong@camera 2017.12.12 for product information */
+#ifdef VENDOR_EDIT
+//#include <linux/project_info.h>
+static struct cam_sensor_i2c_reg_array lotid_on_setting[2] = {
+	{
+		.reg_addr = 0x0A02,
+		.reg_data = 0x27,
+		.delay = 0x01,
+		.data_mask = 0x00
+	},
+	{
+		.reg_addr = 0x0A00,
+		.reg_data = 0x01,
+		.delay = 0x01,
+		.data_mask = 0x00
+	},
+};
+
+static struct cam_sensor_i2c_reg_array lotid_off_setting = {
+	.reg_addr = 0x0A00,
+	.reg_data = 0x00,
+	.delay = 0x01,
+	.data_mask = 0x00
+};
+
+static struct cam_sensor_i2c_reg_setting lotid_on = {
+	.reg_setting = lotid_on_setting,
+	.size = 2,
+	.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD,
+	.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE,
+	.delay = 5,
+};
+
+static struct cam_sensor_i2c_reg_setting lotid_off = {
+	.reg_setting = &lotid_off_setting,
+	.size = 1,
+	.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD,
+	.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE,
+	.delay = 5,
+};
+
+#define LOTID_START_ADDR 0x0A20
+#define LOTID_LENGTH 8
+#define EEPROM_MODE_ADDR 0x00
+
+static char fuse_id[64] = {'\0'};
+/*add by hongbo.dai@20180831, for support multi camera resource*/
+static uint16_t  rear_main_vendor = 0;
+static uint16_t  front_main_vendor = 0;
+
+static int sensor_get_fuseid(struct cam_sensor_ctrl_t *s_ctrl)
+{
+	int rc = 0;
+	uint16_t lotid_addr = LOTID_START_ADDR;
+	struct cam_camera_slave_info *slave_info;
+
+	int i = 0;
+	uint32_t check_reg_val = 0;
+	int retry_cnt = 5;
+	char str_tmp[6] = {'\0'};
+
+	slave_info = &(s_ctrl->sensordata->slave_info);
+	if (!slave_info) {
+		CAM_ERR(CAM_SENSOR, "slave_info is NULL: %pK",
+			slave_info);
+		return -EINVAL;
+	}
+
+	rc = camera_io_dev_read(
+		&(s_ctrl->io_master_info),
+		0x0A01,
+		&check_reg_val, CAMERA_SENSOR_I2C_TYPE_WORD,
+		CAMERA_SENSOR_I2C_TYPE_BYTE);
+
+	//enable read lot id
+	rc = camera_io_dev_write(
+		&(s_ctrl->io_master_info),
+		&lotid_on);
+
+	//verify lot id availability
+	for (i = 0; i < retry_cnt; i++) {
+		rc = camera_io_dev_read(
+			&(s_ctrl->io_master_info),
+			0x0A01,
+			&check_reg_val, CAMERA_SENSOR_I2C_TYPE_WORD,
+			CAMERA_SENSOR_I2C_TYPE_BYTE);
+		if (check_reg_val & (0x1))
+			break;
+	}
+
+	if (i == retry_cnt) {
+		CAM_ERR(CAM_SENSOR, "lot id not available");
+		return -EINVAL;
+	}
+
+	//read lot id
+	for (i = 0; i < LOTID_LENGTH; i++) {
+		rc = camera_io_dev_read(
+			&(s_ctrl->io_master_info),
+			lotid_addr+i,
+			&check_reg_val, CAMERA_SENSOR_I2C_TYPE_WORD,
+			CAMERA_SENSOR_I2C_TYPE_BYTE);
+		snprintf(str_tmp, sizeof(str_tmp), "%02x",
+			(check_reg_val&0x00FF));
+		strlcat(fuse_id, str_tmp, sizeof(fuse_id));
+	}
+
+	//disable read lot id
+	rc = camera_io_dev_write(
+		&(s_ctrl->io_master_info),
+		&lotid_off);
+
+	return 0;
+}
+#endif
+
 
 static void cam_sensor_update_req_mgr(
 	struct cam_sensor_ctrl_t *s_ctrl,
@@ -349,11 +471,30 @@ int32_t cam_sensor_update_slave_info(struct cam_cmd_probe *probe_info,
 
 	s_ctrl->sensor_probe_addr_type =  probe_info->addr_type;
 	s_ctrl->sensor_probe_data_type =  probe_info->data_type;
+	#ifdef VENDOR_EDIT
+	/*add by hongbo.dai@camera 20180831, for support multi camera resource*/
+	s_ctrl->sensordata->slave_info.eeprom_slave_addr =
+		(probe_info->reserved >> 8) & (0xFF);
+	s_ctrl->sensordata->slave_info.vendor_id =
+		(probe_info->reserved & 0xFF);
+	s_ctrl->sensordata->slave_info.camera_id=
+		probe_info->camera_id;
+
+	CAM_DBG(CAM_SENSOR,
+		"Sensor Addr: 0x%x sensor_id: 0x%x sensor_mask: 0x%x eeprom_addr:0x%0x  vendor_id:0x%0x",
+		s_ctrl->sensordata->slave_info.sensor_id_reg_addr,
+		s_ctrl->sensordata->slave_info.sensor_id,
+		s_ctrl->sensordata->slave_info.sensor_id_mask,
+		s_ctrl->sensordata->slave_info.eeprom_slave_addr,
+        s_ctrl->sensordata->slave_info.vendor_id);
+	#else
 	CAM_DBG(CAM_SENSOR,
 		"Sensor Addr: 0x%x sensor_id: 0x%x sensor_mask: 0x%x",
 		s_ctrl->sensordata->slave_info.sensor_id_reg_addr,
 		s_ctrl->sensordata->slave_info.sensor_id,
 		s_ctrl->sensordata->slave_info.sensor_id_mask);
+	#endif
+
 	return rc;
 }
 
@@ -504,6 +645,15 @@ void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl)
 	if (s_ctrl->sensor_state == CAM_SENSOR_INIT)
 		return;
 
+#ifdef VENDOR_EDIT
+     CAM_INFO(CAM_SENSOR, "streamoff Sensor");
+	rc = cam_sensor_apply_settings(s_ctrl, 0,
+		CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMOFF);
+	if (rc < 0) {
+		CAM_INFO(CAM_SENSOR, "non-fatal cannot apply streamoff settings");
+	}
+#endif
+
 	cam_sensor_release_resource(s_ctrl);
 	cam_sensor_release_stream_rsc(s_ctrl);
 	if (s_ctrl->sensor_state >= CAM_SENSOR_ACQUIRE)
@@ -518,18 +668,23 @@ void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl)
 
 	kfree(power_info->power_setting);
 	kfree(power_info->power_down_setting);
-	power_info->power_setting = NULL;
-	power_info->power_down_setting = NULL;
 
 	s_ctrl->streamon_count = 0;
 	s_ctrl->streamoff_count = 0;
 	s_ctrl->sensor_state = CAM_SENSOR_INIT;
 }
 
+
 int cam_sensor_match_id(struct cam_sensor_ctrl_t *s_ctrl)
 {
 	int rc = 0;
 	uint32_t chipid = 0;
+#ifdef VENDOR_EDIT
+	uint32_t sensor_version = 0;
+	uint16_t sensor_version_reg = 0x0018;
+	uint32_t module_id =0;
+	uint16_t tmp_slave_addr;
+#endif
 	struct cam_camera_slave_info *slave_info;
 
 	slave_info = &(s_ctrl->sensordata->slave_info);
@@ -548,11 +703,97 @@ int cam_sensor_match_id(struct cam_sensor_ctrl_t *s_ctrl)
 
 	CAM_DBG(CAM_SENSOR, "read id: 0x%x expected id 0x%x:",
 			 chipid, slave_info->sensor_id);
+
 	if (cam_sensor_id_by_mask(s_ctrl, chipid) != slave_info->sensor_id) {
 		CAM_ERR(CAM_SENSOR, "chip id %x does not match %x",
 				chipid, slave_info->sensor_id);
 		return -ENODEV;
 	}
+
+#ifdef VENDOR_EDIT
+	if (chipid == 0x519) {
+		rc = camera_io_dev_read(
+			&(s_ctrl->io_master_info),
+			sensor_version_reg,
+			&sensor_version, CAMERA_SENSOR_I2C_TYPE_WORD,
+			CAMERA_SENSOR_I2C_TYPE_WORD);
+
+			CAM_INFO(CAM_SENSOR, "imx519 sensor_version: 0x%x",
+				sensor_version >> 8);
+	}
+	if (chipid == 0x576) {
+		rc = camera_io_dev_read(
+			&(s_ctrl->io_master_info),
+			sensor_version_reg,
+			&sensor_version, CAMERA_SENSOR_I2C_TYPE_WORD,
+			CAMERA_SENSOR_I2C_TYPE_WORD);
+
+			CAM_INFO(CAM_SENSOR, "imx576 sensor_version: 0x%x",
+				sensor_version >> 8);
+	}
+
+	if (chipid == 0x559B) {
+		rc = camera_io_dev_read(
+			&(s_ctrl->io_master_info),
+			0x0002,
+			&sensor_version, CAMERA_SENSOR_I2C_TYPE_WORD,
+			CAMERA_SENSOR_I2C_TYPE_WORD);
+
+			CAM_INFO(CAM_SENSOR, "S5k5e9 sensor_version: 0x%x",
+				sensor_version >> 8);
+	}
+	/*add by hongbo.dai@camera 20180831, for support multi camera resource*/
+	if (chipid == 0x519 || chipid == 0x576 || chipid == 0x559B) {
+		if (slave_info->eeprom_slave_addr != 0) {
+			//change to eeprom slave address for read vendor ID
+			tmp_slave_addr = s_ctrl->io_master_info.cci_client->sid;
+			s_ctrl->io_master_info.cci_client->sid = (slave_info->eeprom_slave_addr >> 1);
+			rc = camera_io_dev_read(
+				&(s_ctrl->io_master_info),
+				EEPROM_MODE_ADDR,
+				&module_id, CAMERA_SENSOR_I2C_TYPE_WORD,
+				CAMERA_SENSOR_I2C_TYPE_BYTE);
+			//back to sensor slave address
+			s_ctrl->io_master_info.cci_client->sid = (tmp_slave_addr);
+			if (slave_info->vendor_id != module_id) {
+				CAM_ERR(CAM_SENSOR, "eeprom module id %x does not match %x",
+					module_id, slave_info->vendor_id);
+				return -ENODEV;
+			}
+
+			CAM_ERR(CAM_SENSOR, "slave addr: 0x%x eeprom module id: 0x%x",
+				slave_info->eeprom_slave_addr,
+				module_id);
+			slave_info->vendor_id = (uint16_t)module_id;
+			if (slave_info->camera_id == 0)
+			   rear_main_vendor = slave_info->vendor_id;
+			else if (slave_info->camera_id == 1)
+				front_main_vendor = slave_info->vendor_id;
+		} else { //no eeprom
+			if (slave_info->camera_id == 2) {
+				if ((rear_main_vendor > 0) && (rear_main_vendor != slave_info->vendor_id)) {
+				    CAM_ERR(CAM_SENSOR, "eeprom module id %x does not match %x",
+					    rear_main_vendor, slave_info->vendor_id);
+				    return -ENODEV;
+				}
+			} else if (slave_info->camera_id == 3) {
+				if ((front_main_vendor > 0) && (front_main_vendor != slave_info->vendor_id)) {
+				    CAM_ERR(CAM_SENSOR, "eeprom module id %x does not match %x",
+					    front_main_vendor, slave_info->vendor_id);
+				    return -ENODEV;
+				}
+			}
+		}
+	}
+
+	if (slave_info->sensor_id == 0x519 && fuse_id[0] == '\0') {
+		sensor_get_fuseid(s_ctrl);
+		CAM_ERR(CAM_SENSOR,
+			"sensor_id: 0x%x, fuse_id:%s",
+			slave_info->sensor_id,
+			fuse_id);
+	}
+#endif
 	return rc;
 }
 
@@ -563,6 +804,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	struct cam_control *cmd = (struct cam_control *)arg;
 	struct cam_sensor_power_setting *pu = NULL;
 	struct cam_sensor_power_setting *pd = NULL;
+
 	struct cam_sensor_power_ctrl_t *power_info =
 		&s_ctrl->sensordata->power_info;
 	if (!s_ctrl || !arg) {
@@ -587,6 +829,25 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			break;
 		}
 
+		/* Allocate memory for power up setting */
+		pu = kzalloc(sizeof(struct cam_sensor_power_setting) *
+			MAX_POWER_CONFIG, GFP_KERNEL);
+		if (!pu) {
+			rc = -ENOMEM;
+			goto release_mutex;
+		}
+
+		pd = kzalloc(sizeof(struct cam_sensor_power_setting) *
+			MAX_POWER_CONFIG, GFP_KERNEL);
+		if (!pd) {
+			kfree(pu);
+			rc = -ENOMEM;
+			goto release_mutex;
+		}
+
+		power_info->power_setting = pu;
+		power_info->power_down_setting = pd;
+
 		if (cmd->handle_type ==
 			CAM_HANDLE_MEM_HANDLE) {
 			rc = cam_handle_mem_ptr(cmd->handle, s_ctrl);
@@ -599,12 +860,8 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		} else {
 			CAM_ERR(CAM_SENSOR, "Invalid Command Type: %d",
 				 cmd->handle_type);
-			rc = -EINVAL;
-			goto release_mutex;
+			return -EINVAL;
 		}
-
-		pu = power_info->power_setting;
-		pd = power_info->power_down_setting;
 
 		/* Parse and fill vreg params for powerup settings */
 		rc = msm_camera_fill_vreg_params(
@@ -654,7 +911,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		}
 
 		CAM_INFO(CAM_SENSOR,
-			"Probe success,slot:%d,slave_addr:0x%x,sensor_id:0x%x",
+			"Probe Succees,slot:%d,slave_addr:0x%x,sensor_id:0x%x",
 			s_ctrl->soc_info.index,
 			s_ctrl->sensordata->slave_info.sensor_slave_addr,
 			s_ctrl->sensordata->slave_info.sensor_id);
@@ -877,6 +1134,22 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		}
 	}
 		break;
+#ifdef VENDOR_EDIT
+	case CAM_GET_FUSE_ID: {
+		CAM_ERR(CAM_SENSOR, "fuse_id:%s", fuse_id);
+		if (fuse_id[0] == '\0') {
+			CAM_ERR(CAM_SENSOR, "fuse_id is empty");
+			rc = -EFAULT;
+			goto release_mutex;
+		} else if (copy_to_user((void __user *) cmd->handle, &fuse_id,
+			sizeof(fuse_id))) {
+			CAM_ERR(CAM_SENSOR, "Failed Copy to User");
+			rc = -EFAULT;
+			goto release_mutex;
+		}
+		break;
+	}
+#endif
 	default:
 		CAM_ERR(CAM_SENSOR, "Invalid Opcode: %d", cmd->op_code);
 		rc = -EINVAL;
@@ -941,6 +1214,52 @@ int cam_sensor_power(struct v4l2_subdev *sd, int on)
 	return 0;
 }
 
+#ifdef VENDOR_EDIT
+/*Jinshui.Liu@Camera.Driver, 2018/06/23, add for [tof watchdog]*/
+static int cam_sensor_wtd_trigger(int watchdog_gpio)
+{
+	int kick_config = 0;
+
+	kick_config = gpio_get_value(watchdog_gpio);
+	gpio_direction_output(watchdog_gpio, (kick_config == 1) ? 0: 1);
+
+	return 0;
+}
+
+enum hrtimer_restart cam_sensor_hrtimer_callback(struct hrtimer *hrt_ptr)
+{
+	ktime_t ktime;
+
+	cam_sensor_wtd_trigger(tof_watchdog_goio);
+
+	ktime = ktime_set(0, (50000 % 1000000) * 1000);
+	hrtimer_start(&tof_watchdog_timer, ktime, HRTIMER_MODE_REL);
+
+	return HRTIMER_NORESTART;
+}
+
+static int cam_sensor_hrtimer_init(struct cam_sensor_board_info * sensordata)
+{
+	hrtimer_init(&tof_watchdog_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	tof_watchdog_timer.function = cam_sensor_hrtimer_callback;
+
+	return 0;
+}
+
+static int cam_sensor_hrtimer_start(struct cam_sensor_board_info * sensordata)
+{
+	ktime_t ktime;
+
+	cam_sensor_wtd_trigger(sensordata->watchdog_gpio);
+	tof_watchdog_goio = sensordata->watchdog_gpio;
+
+	ktime = ktime_set(0, (50000 % 1000000) * 1000);
+	hrtimer_start(&tof_watchdog_timer, ktime, HRTIMER_MODE_REL);
+
+	return 0;
+}
+#endif
+
 int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 {
 	int rc;
@@ -961,6 +1280,14 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_ERR(CAM_SENSOR, "failed: %pK %pK", power_info, slave_info);
 		return -EINVAL;
 	}
+
+#ifdef VENDOR_EDIT
+	/*Jinshui.Liu@Camera.Driver, 2018/06/23, add for [tof watchdog]*/
+	if (s_ctrl->sensordata->watchdog_gpio != -1) {
+		cam_sensor_hrtimer_init(s_ctrl->sensordata);
+		cam_sensor_hrtimer_start(s_ctrl->sensordata);
+	}
+#endif
 
 	rc = cam_sensor_core_power_up(power_info, soc_info);
 	if (rc < 0) {
@@ -993,6 +1320,12 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_ERR(CAM_SENSOR, "failed: power_info %pK", power_info);
 		return -EINVAL;
 	}
+#ifdef VENDOR_EDIT
+	/*Jinshui.Liu@Camera.Driver, 2018/06/23, add for [tof watchdog]*/
+	if (s_ctrl->sensordata->watchdog_gpio != -1) {
+		hrtimer_cancel(&tof_watchdog_timer);
+	}
+#endif
 	rc = msm_camera_power_down(power_info, soc_info);
 	if (rc < 0) {
 		CAM_ERR(CAM_SENSOR, "power down the core is failed:%d", rc);

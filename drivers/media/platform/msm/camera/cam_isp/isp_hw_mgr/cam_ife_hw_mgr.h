@@ -156,6 +156,11 @@ struct cam_ife_hw_mgr_ctx {
 	atomic_t                        overflow_pending;
 	uint32_t                        is_rdi_only_context;
 	struct completion               config_done_complete;
+	#ifdef VENDOR_EDIT
+	/*add by hongbo.dai@camera, 20180627 for hwsync*/
+	int crm_sync_mode;
+	int frame_count;
+	#endif
 };
 
 /**

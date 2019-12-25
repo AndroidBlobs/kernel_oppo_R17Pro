@@ -44,7 +44,10 @@ int cam_cci_init(struct v4l2_subdev *sd,
 	}
 
 	CAM_DBG(CAM_CCI, "Base address %pK", base);
-
+	#ifdef VENDOR_EDIT
+	/*Added by houyujun@Camera 20180616 for cci sync*/
+	mutex_lock(&cci_dev->cci_lock);
+	#endif
 	if (cci_dev->ref_count++) {
 		CAM_DBG(CAM_CCI, "ref_count %d", cci_dev->ref_count);
 		master = c_ctrl->cci_info->cci_i2c_master;
@@ -75,6 +78,10 @@ int cam_cci_init(struct v4l2_subdev *sd,
 				CAM_ERR(CAM_CCI, "wait failed %d", rc);
 			mutex_unlock(&cci_dev->cci_master_info[master].mutex);
 		}
+		#ifdef VENDOR_EDIT
+		/*Added by houyujun@Camera 20180616 for cci sync*/
+		mutex_unlock(&cci_dev->cci_lock);
+		#endif
 		return 0;
 	}
 
@@ -146,10 +153,6 @@ int cam_cci_init(struct v4l2_subdev *sd,
 		base + CCI_IRQ_MASK_0_ADDR);
 	cam_io_w_mb(CCI_IRQ_MASK_0_RMSK,
 		base + CCI_IRQ_CLEAR_0_ADDR);
-	cam_io_w_mb(CCI_IRQ_MASK_1_RMSK,
-		base + CCI_IRQ_MASK_1_ADDR);
-	cam_io_w_mb(CCI_IRQ_MASK_1_RMSK,
-		base + CCI_IRQ_CLEAR_1_ADDR);
 	cam_io_w_mb(0x1, base + CCI_IRQ_GLOBAL_CLEAR_CMD_ADDR);
 
 	for (i = 0; i < MASTER_MAX; i++) {
@@ -161,15 +164,11 @@ int cam_cci_init(struct v4l2_subdev *sd,
 			flush_workqueue(cci_dev->write_wq[i]);
 		}
 	}
-
-	/* Set RD FIFO threshold for M0 & M1 */
-	cam_io_w_mb(CCI_I2C_RD_THRESHOLD_VALUE,
-		base + CCI_I2C_M0_RD_THRESHOLD_ADDR);
-	cam_io_w_mb(CCI_I2C_RD_THRESHOLD_VALUE,
-		base + CCI_I2C_M1_RD_THRESHOLD_ADDR);
-
 	cci_dev->cci_state = CCI_STATE_ENABLED;
-
+	#ifdef VENDOR_EDIT
+	/*Added by houyujun@Camera 20180616 for cci sync*/
+	mutex_unlock(&cci_dev->cci_lock);
+	#endif
 	return 0;
 
 reset_complete_failed:
@@ -178,7 +177,10 @@ reset_complete_failed:
 platform_enable_failed:
 	cci_dev->ref_count--;
 	cam_cpas_stop(cci_dev->cpas_handle);
-
+	#ifdef VENDOR_EDIT
+	/*Added by houyujun@Camera 20180616 for cci sync*/
+	mutex_unlock(&cci_dev->cci_lock);
+	#endif
 	return rc;
 }
 
@@ -378,8 +380,16 @@ int cam_cci_soc_release(struct cci_device *cci_dev)
 			cci_dev->ref_count, cci_dev->cci_state);
 		return -EINVAL;
 	}
+	#ifdef VENDOR_EDIT
+	/*Added by houyujun@Camera 20180616 for cci sync*/
+	mutex_lock(&cci_dev->cci_lock);
+	#endif
 	if (--cci_dev->ref_count) {
 		CAM_DBG(CAM_CCI, "ref_count Exit %d", cci_dev->ref_count);
+		#ifdef VENDOR_EDIT
+		/*Added by houyujun@Camera 20180616 for cci sync*/
+		mutex_unlock(&cci_dev->cci_lock);
+		#endif
 		return 0;
 	}
 	for (i = 0; i < MASTER_MAX; i++)
@@ -393,6 +403,10 @@ int cam_cci_soc_release(struct cci_device *cci_dev)
 	if (rc) {
 		CAM_ERR(CAM_CCI, "platform resources disable failed, rc=%d",
 			rc);
+		#ifdef VENDOR_EDIT
+		/*Added by houyujun@Camera 20180616 for cci sync*/
+		mutex_unlock(&cci_dev->cci_lock);
+		#endif
 		return rc;
 	}
 
@@ -400,6 +414,9 @@ int cam_cci_soc_release(struct cci_device *cci_dev)
 	cci_dev->cycles_per_us = 0;
 
 	cam_cpas_stop(cci_dev->cpas_handle);
-
+	#ifdef VENDOR_EDIT
+	/*Added by houyujun@Camera 20180616 for cci sync*/
+	mutex_unlock(&cci_dev->cci_lock);
+	#endif
 	return rc;
 }

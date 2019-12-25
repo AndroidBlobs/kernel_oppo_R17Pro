@@ -24,6 +24,14 @@
 #include "cam_ife_hw_mgr.h"
 #include "cam_debug_util.h"
 
+#ifdef VENDOR_EDIT
+/*added by houyujun@Camera 20180626 for smmu dump*/
+#define CAM_VFE_WM_MAX 20
+#define CAM_VFE_WM_BASE_ADDR 0x00002200
+#define CAM_VFE_WM_REG_SIZE  0x00000100
+#define CAM_VFE_WM_n_CFG_ADDR(n) ((CAM_VFE_WM_BASE_ADDR + n*CAM_VFE_WM_REG_SIZE) + 0x8)
+#endif
+
 static const char drv_name[] = "vfe";
 static uint32_t irq_reg_offset[CAM_IFE_IRQ_REGISTERS_MAX] = {
 	0x0000006C,
@@ -164,6 +172,14 @@ static int cam_vfe_irq_err_top_half(uint32_t    evt_id,
 
 	handler_priv = th_payload->handler_priv;
 	core_info =  handler_priv->core_info;
+	#ifdef VENDOR_EDIT
+	/*added by houyujun@Camera 20180626 for smmu dump*/
+	CAM_ERR(CAM_ISP,"stopping WMs");
+	/* stop all the wms for this vfe */
+	for(i = 0; i < CAM_VFE_WM_MAX; i++) {
+		cam_io_w_mb(0x0,handler_priv->mem_base + CAM_VFE_WM_n_CFG_ADDR(i));
+	}
+	#endif
 	/*
 	 *  need to handle overflow condition here, otherwise irq storm
 	 *  will block everything
@@ -564,6 +580,8 @@ int cam_vfe_start(void *hw_priv, void *start_args, uint32_t arg_size)
 			if (isp_res->irq_handle < 1)
 				rc = -ENOMEM;
 		} else if (isp_res->rdi_only_ctx) {
+			CAM_INFO(CAM_ISP, "RDI:%d ony context register for irq",
+				isp_res->res_id);
 			isp_res->irq_handle =
 				cam_irq_controller_subscribe_irq(
 					core_info->vfe_irq_controller,

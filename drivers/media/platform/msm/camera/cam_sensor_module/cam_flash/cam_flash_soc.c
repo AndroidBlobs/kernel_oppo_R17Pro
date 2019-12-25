@@ -201,6 +201,15 @@ int cam_flash_get_dt_data(struct cam_flash_ctrl *fctrl,
 		return rc;
 	}
 
+	#ifdef VENDOR_EDIT
+	/*Add by Zhengrong.Zhang@Camera 20160630 for flash*/
+	rc = of_property_read_string(of_node, "qcom,flash-name",
+		&fctrl->flash_name);
+	if (rc < 0) {
+		pr_err("get flash_name failed rc %d\n", rc);
+	}
+	#endif
+
 	soc_info->soc_private =
 		kzalloc(sizeof(struct cam_flash_private_soc), GFP_KERNEL);
 	if (!soc_info->soc_private) {

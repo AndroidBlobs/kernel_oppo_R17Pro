@@ -860,10 +860,8 @@ int32_t cam_sensor_update_power_settings(void *cmd_buf,
 	return rc;
 free_power_down_settings:
 	kfree(power_info->power_down_setting);
-	power_info->power_down_setting = NULL;
 free_power_settings:
 	kfree(power_info->power_setting);
-	power_info->power_setting = NULL;
 	return rc;
 }
 
@@ -1305,13 +1303,6 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 	for (index = 0; index < ctrl->power_setting_size; index++) {
 		CAM_DBG(CAM_SENSOR, "index: %d", index);
 		power_setting = &ctrl->power_setting[index];
-		if (!power_setting) {
-			CAM_ERR(CAM_SENSOR,
-				"Invalid power up settings for index %d",
-				index);
-			return -EINVAL;
-		}
-
 		CAM_DBG(CAM_SENSOR, "seq_type %d", power_setting->seq_type);
 
 		switch (power_setting->seq_type) {
@@ -1552,7 +1543,7 @@ power_up_failed:
 		if (ret)
 			CAM_ERR(CAM_SENSOR, "cannot set pin to suspend state");
 		cam_res_mgr_shared_pinctrl_select_state(false);
-		devm_pinctrl_put(ctrl->pinctrl_info.pinctrl);
+		pinctrl_put(ctrl->pinctrl_info.pinctrl);
 		cam_res_mgr_shared_pinctrl_put();
 	}
 
@@ -1640,7 +1631,7 @@ int msm_camera_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 {
 	int index = 0, ret = 0, num_vreg = 0, i;
 	struct cam_sensor_power_setting *pd = NULL;
-	struct cam_sensor_power_setting *ps = NULL;
+	struct cam_sensor_power_setting *ps;
 	struct msm_camera_gpio_num_info *gpio_num_info = NULL;
 
 	CAM_DBG(CAM_SENSOR, "Enter");
@@ -1660,13 +1651,6 @@ int msm_camera_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 	for (index = 0; index < ctrl->power_down_setting_size; index++) {
 		CAM_DBG(CAM_SENSOR, "index %d",  index);
 		pd = &ctrl->power_down_setting[index];
-		if (!pd) {
-			CAM_ERR(CAM_SENSOR,
-				"Invalid power down settings for index %d",
-				index);
-			return -EINVAL;
-		}
-
 		ps = NULL;
 		CAM_DBG(CAM_SENSOR, "type %d",  pd->seq_type);
 		switch (pd->seq_type) {
@@ -1766,7 +1750,7 @@ int msm_camera_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 			CAM_ERR(CAM_SENSOR, "cannot set pin to suspend state");
 
 		cam_res_mgr_shared_pinctrl_select_state(false);
-		devm_pinctrl_put(ctrl->pinctrl_info.pinctrl);
+		pinctrl_put(ctrl->pinctrl_info.pinctrl);
 		cam_res_mgr_shared_pinctrl_put();
 	}
 

@@ -307,6 +307,12 @@ struct cam_camera_slave_info {
 	uint16_t sensor_id_reg_addr;
 	uint16_t sensor_id;
 	uint16_t sensor_id_mask;
+	#ifdef VENDOR_EDIT
+	/*add by hongbo.dai@camera 20180831, for support multi camera resource*/
+	uint16_t eeprom_slave_addr;
+	uint16_t vendor_id;
+	uint16_t camera_id;
+	#endif
 };
 
 struct msm_sensor_init_params {
@@ -354,6 +360,10 @@ struct cam_sensor_board_info {
 	int32_t  subdev_intf[SUB_MODULE_MAX];
 	const char *misc_regulator;
 	struct cam_sensor_power_ctrl_t power_info;
+#ifdef VENDOR_EDIT
+	/*Jinshui.Liu@Camera.Driver, 2018/06/23, add for [tof watchdog]*/
+	int32_t watchdog_gpio;
+#endif
 };
 
 enum msm_camera_vreg_name_t {

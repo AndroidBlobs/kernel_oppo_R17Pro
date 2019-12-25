@@ -346,20 +346,20 @@ static void cam_smmu_check_vaddr_in_range(int idx, void *vaddr)
 
 		if (start_addr <= current_addr && current_addr < end_addr) {
 			CAM_ERR(CAM_SMMU,
-				"va %pK valid: range:%pK-%pK, fd = %d cb: %s",
+				"va %p valid: range:%p-%p, fd = %d cb: %s",
 				vaddr, (void *)start_addr, (void *)end_addr,
 				mapping->ion_fd,
 				iommu_cb_set.cb_info[idx].name);
 			goto end;
 		} else {
-			CAM_DBG(CAM_SMMU,
-				"va %pK is not in this range: %pK-%pK, fd = %d",
+			CAM_ERR(CAM_SMMU,
+				"va %p is not in this range: %p-%p, fd = %d",
 				vaddr, (void *)start_addr, (void *)end_addr,
 				mapping->ion_fd);
 		}
 	}
 	CAM_ERR(CAM_SMMU,
-		"Cannot find vaddr:%pK in SMMU %s uses invalid virt address",
+		"Cannot find vaddr:%p in SMMU %s uses invalid virt address",
 		vaddr, iommu_cb_set.cb_info[idx].name);
 end:
 	return;
@@ -458,6 +458,10 @@ static int cam_smmu_iommu_fault_handler(struct iommu_domain *domain,
 			idx, cb_name);
 		return -EINVAL;
 	}
+
+	CAM_ERR(CAM_SMMU,
+		"Error: index = %d, token = %s",
+		idx, cb_name);
 
 	payload = kzalloc(sizeof(struct cam_smmu_work_payload), GFP_ATOMIC);
 	if (!payload)
@@ -3058,6 +3062,7 @@ static int cam_smmu_setup_cb(struct cam_context_bank_info *cb,
 					"Failed to set iova guard pagei attr");
 			}
 		}
+
 	} else {
 		CAM_ERR(CAM_SMMU, "Context bank does not have IO region");
 		rc = -ENODEV;
@@ -3343,7 +3348,6 @@ static int cam_smmu_probe(struct platform_device *pdev)
 		rc = cam_populate_smmu_context_banks(dev, CAM_ARM_SMMU);
 		if (rc < 0) {
 			CAM_ERR(CAM_SMMU, "Error: populating context banks");
-			cam_smmu_release_cb(pdev);
 			return -ENOMEM;
 		}
 		return rc;

@@ -140,6 +140,37 @@ static int cam_flash_ops(struct cam_flash_ctrl *flash_ctrl,
 	soc_private = (struct cam_flash_private_soc *)
 		flash_ctrl->soc_info.soc_private;
 
+/* add by likelong@camera 2017.11.20 force to turn on dual LED */
+#ifdef VENDOR_EDIT
+	if (op == CAMERA_SENSOR_FLASH_OP_FIRELOW) {
+		for (i = 0; i < flash_ctrl->torch_num_sources; i++) {
+			if (flash_data->led_current_ma[i]) {
+				if (i)
+					flash_data->led_current_ma[i-1] =
+					flash_data->led_current_ma[i];
+				else
+					flash_data->led_current_ma[i+1] =
+					flash_data->led_current_ma[i];
+				break;
+			}
+		}
+	} else if (op == CAMERA_SENSOR_FLASH_OP_FIREHIGH) {
+		for (i = 0; i < flash_ctrl->flash_num_sources; i++) {
+			if (flash_data->led_current_ma[i]) {
+				if (i)
+					flash_data->led_current_ma[i-1] =
+					flash_data->led_current_ma[i];
+				else
+					flash_data->led_current_ma[i+1] =
+					flash_data->led_current_ma[i];
+				break;
+			}
+		}
+	} else {
+		CAM_ERR(CAM_FLASH, "Wrong Operation: %d", op);
+	}
+#endif
+
 	if (op == CAMERA_SENSOR_FLASH_OP_FIRELOW) {
 		for (i = 0; i < flash_ctrl->torch_num_sources; i++) {
 			if (flash_ctrl->torch_trigger[i]) {
@@ -191,10 +222,24 @@ static int cam_flash_ops(struct cam_flash_ctrl *flash_ctrl,
 
 int cam_flash_off(struct cam_flash_ctrl *flash_ctrl)
 {
+	int i = 0;
+
 	if (!flash_ctrl) {
 		CAM_ERR(CAM_FLASH, "Flash control Null");
 		return -EINVAL;
 	}
+
+	for (i = 0; i < flash_ctrl->flash_num_sources; i++)
+		if (flash_ctrl->flash_trigger[i])
+			cam_res_mgr_led_trigger_event(
+				flash_ctrl->flash_trigger[i],
+				LED_OFF);
+
+	for (i = 0; i < flash_ctrl->torch_num_sources; i++)
+		if (flash_ctrl->torch_trigger[i])
+			cam_res_mgr_led_trigger_event(
+				flash_ctrl->torch_trigger[i],
+				LED_OFF);
 
 	if (flash_ctrl->switch_trigger)
 		cam_res_mgr_led_trigger_event(flash_ctrl->switch_trigger,
@@ -253,6 +298,21 @@ static int cam_flash_high(
 
 	return rc;
 }
+
+#ifdef VENDOR_EDIT
+/*Add by hongbo.dai@Camera 20180319 for flash*/
+int cam_flash_on(struct cam_flash_ctrl *flash_ctrl,
+	struct cam_flash_frame_setting *flash_data,
+	int mode) {
+	int rc = 0;
+	if (mode == 0) {
+		rc = cam_flash_low(flash_ctrl, flash_data);
+	} else if (mode == 1) {
+		rc = cam_flash_high(flash_ctrl, flash_data);
+	}
+	return rc;
+}
+#endif
 
 static int delete_req(struct cam_flash_ctrl *fctrl, uint64_t req_id)
 {

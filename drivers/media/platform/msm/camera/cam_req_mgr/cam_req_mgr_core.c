@@ -163,34 +163,6 @@ static void __cam_req_mgr_dec_idx(int32_t *val, int32_t step, int32_t max_val)
 }
 
 /**
- * __cam_req_mgr_validate_inject_delay()
- *
- * @brief    : Check if any pd device is introducing inject delay
- * @tbl      : cam_req_mgr_req_tbl
- * @curr_idx : slot idx
- *
- * @return   : 0 for success, negative for failure
- */
-static int __cam_req_mgr_validate_inject_delay(
-	struct cam_req_mgr_req_tbl  *tbl,
-	int32_t curr_idx)
-{
-	struct cam_req_mgr_tbl_slot *slot = NULL;
-
-	while (tbl) {
-		slot = &tbl->slot[curr_idx];
-		if (slot->inject_delay > 0) {
-			slot->inject_delay--;
-			return -EAGAIN;
-		}
-		__cam_req_mgr_dec_idx(&curr_idx, tbl->pd_delta,
-			tbl->num_slots);
-		tbl = tbl->next;
-	}
-	return 0;
-}
-
-/**
  * __cam_req_mgr_traverse()
  *
  * @brief    : Traverse through pd tables, it will internally cover all linked
@@ -211,8 +183,10 @@ static int __cam_req_mgr_traverse(struct cam_req_mgr_traverse *traverse_data)
 	int32_t                      curr_idx = traverse_data->idx;
 	struct cam_req_mgr_req_tbl  *tbl;
 	struct cam_req_mgr_apply    *apply_data;
+#ifdef VENDOR_EDIT
+    /*add by zhenjie.li@Camera,20180525 for flash sync*/
 	struct cam_req_mgr_tbl_slot *slot = NULL;
-
+#endif
 	if (!traverse_data->tbl || !traverse_data->apply_data) {
 		CAM_ERR(CAM_CRM, "NULL pointer %pK %pK",
 			traverse_data->tbl, traverse_data->apply_data);
@@ -222,24 +196,32 @@ static int __cam_req_mgr_traverse(struct cam_req_mgr_traverse *traverse_data)
 
 	tbl = traverse_data->tbl;
 	apply_data = traverse_data->apply_data;
+#ifdef VENDOR_EDIT
+    /*add by zhenjie.li@Camera,20180525 for flash sync*/
 	slot = &tbl->slot[curr_idx];
+#endif
 	CAM_DBG(CAM_CRM,
 		"Enter pd %d idx %d state %d skip %d status %d skip_idx %d",
 		tbl->pd, curr_idx, tbl->slot[curr_idx].state,
 		tbl->skip_traverse, traverse_data->in_q->slot[curr_idx].status,
 		traverse_data->in_q->slot[curr_idx].skip_idx);
-
-	if ((traverse_data->self_link == true) &&
-		(!traverse_data->inject_delay_chk)) {
-		rc = __cam_req_mgr_validate_inject_delay(tbl, curr_idx);
-		if (rc) {
-			CAM_DBG(CAM_CRM, "Injecting Delay of one frame");
-			apply_data[tbl->pd].req_id = -1;
-			/* This pd tbl not ready to proceed with asked idx */
-			SET_FAILURE_BIT(traverse_data->result, tbl->pd);
-			return -EAGAIN;
-		}
-		traverse_data->inject_delay_chk = true;
+#ifdef VENDOR_EDIT
+    /*add by zhenjie.li@Camera,20180525 for flash sync*/
+	if ((slot->inject_delay > 0) &&
+		(traverse_data->self_link == true)) {
+		CAM_DBG(CAM_CRM, "Injecting Delay of one frame");
+		apply_data[tbl->pd].req_id = -1;
+		slot->inject_delay--;
+#else
+	if ((tbl->inject_delay > 0) &&
+		(traverse_data->self_link == true)) {
+		CAM_DBG(CAM_CRM, "Injecting Delay of one frame");
+		apply_data[tbl->pd].req_id = -1;
+		tbl->inject_delay--;
+#endif
+		/* This pd table is not ready to proceed with asked idx */
+		SET_FAILURE_BIT(traverse_data->result, tbl->pd);
+		return -EAGAIN;
 	}
 
 	/* Check if req is ready or in skip mode or pd tbl is in skip mode */
@@ -551,7 +533,6 @@ static int __cam_req_mgr_check_link_is_ready(struct cam_req_mgr_core_link *link,
 	traverse_data.result = 0;
 	traverse_data.validate_only = validate_only;
 	traverse_data.self_link = self_link;
-	traverse_data.inject_delay_chk = false;
 	traverse_data.open_req_cnt = link->open_req_cnt;
 	/*
 	 *  Traverse through all pd tables, if result is success,
@@ -1479,8 +1460,6 @@ int cam_req_mgr_process_flush_req(void *priv, void *data)
 		if (idx < 0) {
 			CAM_ERR(CAM_CRM, "req_id %lld not found in input queue",
 			flush_info->req_id);
-			mutex_unlock(&link->req.lock);
-			return -EINVAL;
 		} else {
 			CAM_DBG(CAM_CRM, "req_id %lld found at idx %d",
 				flush_info->req_id, idx);
@@ -1597,6 +1576,19 @@ int cam_req_mgr_process_add_req(void *priv, void *data)
 	task_data = (struct crm_task_payload *)data;
 	add_req = (struct cam_req_mgr_add_request *)&task_data->u;
 
+	#ifdef VENDOR_EDIT
+	/*add by houyujun@Camera,20180604 for dump*/
+	/*
+	* Validate the link
+	* link might have been unreserved by
+	* this time
+	*/
+	if((link != NULL) && (cam_get_device_priv(link->link_hdl) == NULL)) {
+		CAM_DBG(CAM_CRM, "link ptr NULL %x", add_req->link_hdl);
+		return -EINVAL;
+	}
+	#endif
+
 	for (i = 0; i < link->num_devs; i++) {
 		device = &link->l_dev[i];
 		if (device->dev_hdl == add_req->dev_hdl) {
@@ -1629,13 +1621,20 @@ int cam_req_mgr_process_add_req(void *priv, void *data)
 		goto end;
 	}
 
-	slot = &tbl->slot[idx];
+#ifdef VENDOR_EDIT
+    /*add by zhenjie.li@Camera,20180525 for flash sync*/
+    slot = &tbl->slot[idx];
 	if (add_req->skip_before_applying > slot->inject_delay) {
 		slot->inject_delay = add_req->skip_before_applying;
 		CAM_DBG(CAM_CRM, "Req_id %llu injecting delay %u",
 			add_req->req_id, add_req->skip_before_applying);
 	}
+#else
+	if (add_req->skip_before_applying > tbl->inject_delay)
+		tbl->inject_delay = add_req->skip_before_applying;
 
+	slot = &tbl->slot[idx];
+#endif
 	if (slot->state != CRM_REQ_STATE_PENDING &&
 		slot->state != CRM_REQ_STATE_EMPTY) {
 		CAM_WARN(CAM_CRM, "Unexpected state %d for slot %d map %x",
@@ -2324,7 +2323,6 @@ end:
 int cam_req_mgr_link(struct cam_req_mgr_link_info *link_info)
 {
 	int                                     rc = 0;
-	int                                     wq_flag = 0;
 	char                                    buf[128];
 	struct cam_create_dev_hdl               root_dev;
 	struct cam_req_mgr_core_session        *cam_session;
@@ -2395,9 +2393,8 @@ int cam_req_mgr_link(struct cam_req_mgr_link_info *link_info)
 	/* Create worker for current link */
 	snprintf(buf, sizeof(buf), "%x-%x",
 		link_info->session_hdl, link->link_hdl);
-	wq_flag = CAM_WORKQ_FLAG_HIGH_PRIORITY | CAM_WORKQ_FLAG_SERIAL;
 	rc = cam_req_mgr_workq_create(buf, CRM_WORKQ_NUM_TASKS,
-		&link->workq, CRM_WORKQ_USAGE_NON_IRQ, wq_flag);
+		&link->workq, CRM_WORKQ_USAGE_NON_IRQ);
 	if (rc < 0) {
 		CAM_ERR(CAM_CRM, "FATAL: unable to create worker");
 		__cam_req_mgr_destroy_link_info(link);
@@ -2530,7 +2527,12 @@ int cam_req_mgr_sync_config(
 	struct cam_req_mgr_core_session *cam_session;
 	struct cam_req_mgr_core_link    *link1 = NULL;
 	struct cam_req_mgr_core_link    *link2 = NULL;
-
+	#ifdef VENDOR_EDIT
+	/*add by hongbo.dai@camera 20180627, for camera hwsync*/
+	struct cam_req_mgr_connected_device *dev = NULL;
+	struct cam_req_mgr_link_evt_data     evt_data;
+	int j = 0;
+	#endif
 	if (!sync_info) {
 		CAM_ERR(CAM_CRM, "NULL pointer");
 		return -EINVAL;
@@ -2560,7 +2562,7 @@ int cam_req_mgr_sync_config(
 
 	mutex_lock(&cam_session->lock);
 
-	CAM_DBG(CAM_CRM, "link handles %x %x",
+	CAM_INFO(CAM_CRM, "link handles %x %x",
 		sync_info->link_hdls[0], sync_info->link_hdls[1]);
 
 	/* only two links existing per session in dual cam use case*/
@@ -2591,6 +2593,31 @@ int cam_req_mgr_sync_config(
 	link2->sync_link = link1;
 
 	cam_session->sync_mode = sync_info->sync_mode;
+
+	#ifdef VENDOR_EDIT
+	/*add by hongbo.dai@camera, 20180627 for hwsync*/
+	for (j = 0; j < link1->num_devs; j++) {
+		dev = &link1->l_dev[j];
+		evt_data.evt_type = CAM_REQ_MGR_SYNC_SKIP_REQ;
+		evt_data.link_hdl =  link1->link_hdl;
+		evt_data.dev_hdl = dev->dev_hdl;
+		evt_data.req_id = 0;
+
+		if (dev->ops && dev->ops->process_evt)
+			dev->ops->process_evt(&evt_data);
+	}
+
+	for (j = 0; j < link2->num_devs; j++) {
+		dev = &link2->l_dev[j];
+		evt_data.evt_type = CAM_REQ_MGR_SYNC_SKIP_REQ;
+		evt_data.link_hdl =  link2->link_hdl;
+		evt_data.dev_hdl = dev->dev_hdl;
+		evt_data.req_id = 0;
+
+		if (dev->ops && dev->ops->process_evt)
+			dev->ops->process_evt(&evt_data);
+	}
+	#endif
 
 done:
 	mutex_unlock(&cam_session->lock);
