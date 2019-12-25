@@ -253,7 +253,7 @@ clk_rcg2_recalc_rate(struct clk_hw *hw, unsigned long parent_rate)
 		return rcg->current_freq;
 
 	if (rcg->enable_safe_config && (!clk_hw_is_prepared(hw)
-				|| !clk_hw_is_enabled(hw))) {
+		|| !clk_hw_is_enabled(hw))) {
 		if (!rcg->current_freq)
 			rcg->current_freq = cxo_f.freq;
 		return rcg->current_freq;
