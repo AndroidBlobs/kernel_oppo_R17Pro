@@ -159,6 +159,23 @@ unsigned long vm_total_pages;
 static LIST_HEAD(shrinker_list);
 static DECLARE_RWSEM(shrinker_rwsem);
 
+#ifdef VENDOR_EDIT
+//gaolong@SRC.shanghai, 2018/09/04, add pages swap callback for hypnus
+static ATOMIC_NOTIFIER_HEAD(balance_pg_notifier);
+
+int balance_pg_register_notifier(struct notifier_block *nb)
+{
+	return atomic_notifier_chain_register(&balance_pg_notifier, nb);
+}
+EXPORT_SYMBOL(balance_pg_register_notifier);
+
+int balance_pg_unregister_notifier(struct notifier_block *nb)
+{
+	return atomic_notifier_chain_unregister(&balance_pg_notifier, nb);
+}
+EXPORT_SYMBOL(balance_pg_unregister_notifier);
+#endif
+
 #ifdef CONFIG_MEMCG
 static bool global_reclaim(struct scan_control *sc)
 {
@@ -3449,6 +3466,9 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_o
 		 */
 		wakeup_kcompactd(pgdat, alloc_order, classzone_idx);
 
+#ifdef VENDOR_EDIT
+		atomic_notifier_call_chain(&balance_pg_notifier, BALANCE_PG_END, NULL);
+#endif
 		remaining = schedule_timeout(HZ/10);
 
 		/*
@@ -3581,6 +3601,10 @@ kswapd_try_sleep:
 		 */
 		trace_mm_vmscan_kswapd_wake(pgdat->node_id, classzone_idx,
 						alloc_order);
+#ifdef VENDOR_EDIT
+		if (alloc_order > MIN_ORDER_NOTIFY_HYPNUS)
+			atomic_notifier_call_chain(&balance_pg_notifier, BALANCE_PG_BEGIN, NULL);
+#endif
 		reclaim_order = balance_pgdat(pgdat, alloc_order, classzone_idx);
 		if (reclaim_order < alloc_order)
 			goto kswapd_try_sleep;
