@@ -92,8 +92,20 @@
  * the GMU will start shutting down before we try again.
  */
 #define GMU_WAKEUP_DELAY_US 10
+
+#ifndef VENDOR_EDIT
 /* Max amount of tries to wake up the GMU. */
-#define GMU_WAKEUP_RETRY_MAX 60
+//#define GMU_WAKEUP_RETRY_MAX 60
+#else
+/* Max amount of tries to wake up the GMU. The short retry
+ * limit is half of the long retry limit. After the short
+ * number of retries, we print an informational message to say
+ * exiting IFPC is taking longer than expected. We continue
+ * to retry after this until the long retry limit.
+ */
+#define GMU_SHORT_WAKEUP_RETRY_LIMIT 100
+#define GMU_LONG_WAKEUP_RETRY_LIMIT 200
+#endif /* VENDOR_EDIT */
 
 /* Bits for the flags field in the gmu structure */
 enum gmu_flags {
