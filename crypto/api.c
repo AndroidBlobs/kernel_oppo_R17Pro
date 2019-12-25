@@ -24,6 +24,10 @@
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/string.h>
+#ifdef VENDOR_EDIT
+//Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Add for upgrade f2fs to v4.17-rc1
+#include <linux/completion.h>
+#endif /* VENDOR_EDIT */
 #include "internal.h"
 
 LIST_HEAD(crypto_alg_list);
@@ -610,6 +614,21 @@ int crypto_has_alg(const char *name, u32 type, u32 mask)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(crypto_has_alg);
+
+#ifdef VENDOR_EDIT
+//Zhenjian.Jiang@PSW.BSP.FS.F2FS, 2018/05/14, Add for upgrade f2fs to v4.17-rc1
+void crypto_req_done(struct crypto_async_request *req, int err)
+{
+	struct crypto_wait *wait = req->data;
+
+	if (err == -EINPROGRESS)
+		return;
+
+	wait->err = err;
+	complete(&wait->completion);
+}
+EXPORT_SYMBOL_GPL(crypto_req_done);
+#endif /* VENDOR_EDIT */
 
 MODULE_DESCRIPTION("Cryptographic core API");
 MODULE_LICENSE("GPL");
