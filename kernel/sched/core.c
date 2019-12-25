@@ -9090,6 +9090,10 @@ int sched_rr_handler(struct ctl_table *table, int write,
 }
 
 #ifdef CONFIG_PROC_SYSCTL
+#ifdef VENDOR_EDIT
+//cuixiaogang@SRC.hypnus.2018.07.11. add for change up/down migrate
+static DEFINE_MUTEX(updown_migrate_mutex);
+#endif /* VENDOR_EDIT */
 int sched_updown_migrate_handler(struct ctl_table *table, int write,
 				 void __user *buffer, size_t *lenp,
 				 loff_t *ppos)
@@ -9097,9 +9101,11 @@ int sched_updown_migrate_handler(struct ctl_table *table, int write,
 	int ret;
 	unsigned int *data = (unsigned int *)table->data;
 	unsigned int old_val;
-	static DEFINE_MUTEX(mutex);
 
-	mutex_lock(&mutex);
+#ifdef VENDOR_EDIT
+//cuixiaogang@SRC.hypnus.2018.07.11. add for change up/down migrate
+	mutex_lock(&updown_migrate_mutex);
+#endif /* VENDOR_EDIT */
 	old_val = *data;
 
 	ret = proc_douintvec_capacity(table, write, buffer, lenp, ppos);
@@ -9109,10 +9115,44 @@ int sched_updown_migrate_handler(struct ctl_table *table, int write,
 		ret = -EINVAL;
 		*data = old_val;
 	}
-	mutex_unlock(&mutex);
+#ifdef VENDOR_EDIT
+//cuixiaogang@SRC.hypnus.2018.07.11. add for change up/down migrate
+	mutex_unlock(&updown_migrate_mutex);
+#endif /* VENDOR_EDIT */
 
 	return ret;
 }
+
+#ifdef VENDOR_EDIT
+//cuixiaogang@SRC.hypnus.2018.07.11. add for change up/down migrate
+void sched_get_updown_migrate(unsigned int *up_pct, unsigned int *down_pct)
+{
+	if (!up_pct || !down_pct)
+		return;
+	mutex_lock(&updown_migrate_mutex);
+	*up_pct = SCHED_FIXEDPOINT_SCALE * 100 / sysctl_sched_capacity_margin;
+	*down_pct = SCHED_FIXEDPOINT_SCALE * 100 / sysctl_sched_capacity_margin_down;
+	mutex_unlock(&updown_migrate_mutex);
+}
+EXPORT_SYMBOL(sched_get_updown_migrate);
+
+int sched_set_updown_migrate(unsigned int up_pct, unsigned int down_pct)
+{
+	if (up_pct > 100 || down_pct > 100)
+		return -EINVAL;
+
+	if (down_pct > up_pct)
+		return -EINVAL;
+
+	mutex_lock(&updown_migrate_mutex);
+	sysctl_sched_capacity_margin = SCHED_FIXEDPOINT_SCALE * 100 / up_pct;
+	sysctl_sched_capacity_margin_down = SCHED_FIXEDPOINT_SCALE * 100 / down_pct;
+	mutex_unlock(&updown_migrate_mutex);
+
+	return 0;
+}
+EXPORT_SYMBOL(sched_set_updown_migrate);
+#endif /* VENDOR_EDIT */
 #endif
 
 #ifdef CONFIG_CGROUP_SCHED

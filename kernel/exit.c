@@ -713,6 +713,10 @@ static void check_stack_usage(void)
 	static DEFINE_SPINLOCK(low_water_lock);
 	static int lowest_to_date = THREAD_SIZE;
 	unsigned long free;
+#ifdef VENDOR_EDIT
+/*xing.xiong@BSP.Kernel.Stability, 2018/05/23, Modify for avoid spin lock fail*/
+	int islower = false;
+#endif
 
 	free = stack_not_used(current);
 
@@ -721,11 +725,25 @@ static void check_stack_usage(void)
 
 	spin_lock(&low_water_lock);
 	if (free < lowest_to_date) {
+	#ifndef VENDOR_EDIT
+	/*xing.xiong@BSP.Kernel.Stability, 2018/05/23, Modify for avoid spin lock fail*/
 		pr_info("%s (%d) used greatest stack depth: %lu bytes left\n",
 			current->comm, task_pid_nr(current), free);
+	#else
+		islower = true;
+	#endif /*VENDOR_EDIT*/
 		lowest_to_date = free;
 	}
+
 	spin_unlock(&low_water_lock);
+
+#ifdef VENDOR_EDIT
+	/*xing.xiong@BSP.Kernel.Stability, 2018/05/23, Modify for avoid spin lock fail*/
+	if (islower) {
+		pr_info("%s (%d) used greatest stack depth: %lu bytes left\n",
+			current->comm, task_pid_nr(current), free);
+	}
+#endif
 }
 #else
 static inline void check_stack_usage(void) {}
@@ -735,6 +753,10 @@ void __noreturn do_exit(long code)
 {
 	struct task_struct *tsk = current;
 	int group_dead;
+#if defined(VENDOR_EDIT) && defined(CONFIG_ELSA_STUB)
+//zhoumingjun@Swdp.shanghai, 2017/04/19, add process_event_notifier support
+	struct process_event_data pe_data;
+#endif
 	TASKS_RCU(int tasks_rcu_i);
 
 	profile_task_exit(tsk);
@@ -885,6 +907,14 @@ void __noreturn do_exit(long code)
 		put_page(tsk->task_frag.page);
 
 	validate_creds_for_do_exit(tsk);
+
+#if defined(VENDOR_EDIT) && defined(CONFIG_ELSA_STUB)
+	//zhoumingjun@Swdp.shanghai, 2017/04/19, add process_event_notifier support
+	pe_data.pid = tsk->pid;
+	pe_data.uid = tsk->real_cred->uid;
+	pe_data.reason = code;
+	process_event_notifier_call_chain(PROCESS_EVENT_EXIT, &pe_data);
+#endif
 
 	check_stack_usage();
 	preempt_disable();

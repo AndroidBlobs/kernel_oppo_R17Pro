@@ -26,6 +26,8 @@
 #include <linux/workqueue.h>
 #include <linux/freezer.h>
 
+
+
 /**
  * struct alarm_base - Alarm timer bases
  * @lock:		Lock for syncrhonized access to the base
@@ -185,8 +187,6 @@ static void alarmtimer_dequeue(struct alarm_base *base, struct alarm *alarm)
 	timerqueue_del(&base->timerqueue, &alarm->node);
 	alarm->state &= ~ALARMTIMER_STATE_ENQUEUED;
 }
-
-
 /**
  * alarmtimer_fired - Handles alarm hrtimer being fired.
  * @timer: pointer to hrtimer being run
@@ -210,7 +210,7 @@ static enum hrtimer_restart alarmtimer_fired(struct hrtimer *timer)
 
 	if (alarm->function)
 		restart = alarm->function(alarm, base->gettime());
-
+	
 	spin_lock_irqsave(&base->lock, flags);
 	if (restart != ALARMTIMER_NORESTART) {
 		hrtimer_set_expires(&alarm->timer, alarm->node.expires);
@@ -254,7 +254,6 @@ static int alarmtimer_suspend(struct device *dev)
 	min = freezer_delta;
 	freezer_delta = ktime_set(0, 0);
 	spin_unlock_irqrestore(&freezer_delta_lock, flags);
-
 	rtc = alarmtimer_get_rtcdev();
 	/* If we have no rtcdev, just return */
 	if (!rtc)

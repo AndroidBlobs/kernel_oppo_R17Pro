@@ -47,6 +47,7 @@ ATOMIC_NOTIFIER_HEAD(panic_notifier_list);
 
 EXPORT_SYMBOL(panic_notifier_list);
 
+
 static long no_blink(int state)
 {
 	return 0;
@@ -64,6 +65,7 @@ void __weak panic_smp_self_stop(void)
 	while (1)
 		cpu_relax();
 }
+
 
 /*
  * Stop ourselves in NMI context if another CPU has already panicked. Arch code
@@ -138,6 +140,7 @@ void panic(const char *fmt, ...)
 	int state = 0;
 	int old_cpu, this_cpu;
 	bool _crash_kexec_post_notifiers = crash_kexec_post_notifiers;
+
 
 	trace_kernel_panic(0);
 

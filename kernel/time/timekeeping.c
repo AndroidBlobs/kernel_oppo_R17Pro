@@ -1503,10 +1503,23 @@ void __weak read_boot_clock64(struct timespec64 *ts)
 	ts->tv_sec = 0;
 	ts->tv_nsec = 0;
 }
-
-/* Flag for if timekeeping_resume() has injected sleeptime */
-static bool sleeptime_injected;
-
+#ifdef VENDOR_EDIT
+//Chao.Zeng@BSP.Sensor 2018/11/23 modify for adsp timestamp not match cpu time
+/*
+ * Flag reflecting whether timekeeping_resume() has injected sleeptime.
+ *
+ * The flag starts of false and is only set when a suspend reaches
+ * timekeeping_suspend(), timekeeping_resume() sets it to false when the
+ * timekeeper clocksource is not stopping across suspend and has been
+ * used to update sleep time. If the timekeeper clocksource has stopped
+ * then the flag stays true and is used by the RTC resume code to decide
+ * whether sleeptime must be injected and if so the flag gets false then.
+ *
+ * If a suspend fails before reaching timekeeping_resume() then the flag
+ * stays false and prevents erroneous sleeptime injection.
+ */
+static bool suspend_timing_needed;
+#endif
 /* Flag for if there is a persistent clock on this platform */
 static bool persistent_clock_exists;
 
@@ -1605,7 +1618,10 @@ static void __timekeeping_inject_sleeptime(struct timekeeper *tk,
  */
 bool timekeeping_rtc_skipresume(void)
 {
-	return sleeptime_injected;
+#ifdef VENDOR_EDIT
+//Chao.Zeng@BSP.Sensor 2018/11/23 modify for adsp timestamp not match cpu time
+	return !suspend_timing_needed;
+#endif
 }
 
 /**
@@ -1640,6 +1656,10 @@ void timekeeping_inject_sleeptime64(struct timespec64 *delta)
 
 	raw_spin_lock_irqsave(&timekeeper_lock, flags);
 	write_seqcount_begin(&tk_core.seq);
+#ifdef VENDOR_EDIT
+//Chao.Zeng@BSP.Sensor 2018/11/23 modify for adsp timestamp not match cpu time
+	suspend_timing_needed = false;
+#endif
 
 	timekeeping_forward_now(tk);
 
@@ -1665,8 +1685,10 @@ void timekeeping_resume(void)
 	unsigned long flags;
 	struct timespec64 ts_new, ts_delta;
 	cycle_t cycle_now, cycle_delta;
-
-	sleeptime_injected = false;
+#ifdef VENDOR_EDIT
+//Chao.Zeng@BSP.Sensor 2018/11/23 modify for adsp timestamp not match cpu time
+	bool inject_sleeptime = false;
+#endif
 	read_persistent_clock64(&ts_new);
 
 	clockevents_resume();
@@ -1712,14 +1734,24 @@ void timekeeping_resume(void)
 		nsec += ((u64) cycle_delta * mult) >> shift;
 
 		ts_delta = ns_to_timespec64(nsec);
-		sleeptime_injected = true;
+#ifdef VENDOR_EDIT
+//Chao.Zeng@BSP.Sensor 2018/11/23 modify for adsp timestamp not match cpu time
+		inject_sleeptime = true;
+#endif
 	} else if (timespec64_compare(&ts_new, &timekeeping_suspend_time) > 0) {
 		ts_delta = timespec64_sub(ts_new, timekeeping_suspend_time);
-		sleeptime_injected = true;
+#ifdef VENDOR_EDIT
+//Chao.Zeng@BSP.Sensor 2018/11/23 modify for adsp timestamp not match cpu time
+		inject_sleeptime = true;
+#endif
 	}
-
-	if (sleeptime_injected)
+#ifdef VENDOR_EDIT
+//Chao.Zeng@BSP.Sensor 2018/11/23 modify for adsp timestamp not match cpu time
+	if (inject_sleeptime) {
+		suspend_timing_needed = false;
 		__timekeeping_inject_sleeptime(tk, &ts_delta);
+	}
+#endif
 
 	/* Re-base the last cycle value */
 	tk->tkr_mono.cycle_last = cycle_now;
@@ -1753,6 +1785,10 @@ int timekeeping_suspend(void)
 	 */
 	if (timekeeping_suspend_time.tv_sec || timekeeping_suspend_time.tv_nsec)
 		persistent_clock_exists = true;
+#ifdef VENDOR_EDIT
+//Chao.Zeng@BSP.Sensor 2018/11/23 modify for adsp timestamp not match cpu time
+	suspend_timing_needed = true;
+#endif
 
 	raw_spin_lock_irqsave(&timekeeper_lock, flags);
 	write_seqcount_begin(&tk_core.seq);
