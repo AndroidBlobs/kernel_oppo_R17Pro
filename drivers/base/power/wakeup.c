@@ -888,7 +888,12 @@ bool pm_wakeup_pending(void)
 	}
 	spin_unlock_irqrestore(&events_lock, flags);
 
+#ifndef VENDOR_EDIT
+/*yixue.ge@bsp.drv modify for maybe pm_abort_suspend happend here*/
 	if (ret) {
+#else
+	if (ret || pm_abort_suspend) {
+#endif
 		pr_info("PM: Wakeup pending, aborting suspend\n");
 		pm_print_active_wakeup_sources();
 	}
