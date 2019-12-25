@@ -103,8 +103,12 @@
 	pinctrl-names = "active", "sleep";
 	pinctrl-0 = <&sdc1_clk_on  &sdc1_cmd_on &sdc1_data_on &sdc1_rclk_on>;
 	pinctrl-1 = <&sdc1_clk_off &sdc1_cmd_off &sdc1_data_off &sdc1_rclk_off>;
-
-	status = "ok";
+//#ifndef VENDOR_EDIT
+//yh@PSW.BSP.Storage.UFS, 2018-06-04 add for disable sdhci
+//	status = "ok";
+//#else
+	status = "disabled";
+//#endif
 };
 
 &sdhc_2 {
@@ -121,8 +125,12 @@
 	pinctrl-1 = <&sdc2_clk_off &sdc2_cmd_off &sdc2_data_off &sdc2_cd_off>;
 
 	cd-gpios = <&tlmm 96 0x1>;
-
-	status = "ok";
+//#ifndef VENDOR_EDIT
+//yh@PSW.BSP.Storage.UFS, 2018-06-04 add for disable sdhci
+//      status = "ok";
+//#else
+	status = "disabled";
+//#endif
 };
 
 &vendor {
