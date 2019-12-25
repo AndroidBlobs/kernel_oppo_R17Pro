@@ -398,9 +398,12 @@ static irqreturn_t gpio_keys_gpio_isr(int irq, void *dev_id)
 	if (bdata->button->wakeup)
 		pm_stay_awake(bdata->input->dev.parent);
 
-	mod_delayed_work(system_wq,
+#ifdef VENDOR_EDIT
+/*wanghao@BSP.Kernel.Debug, 2018/05/29, Add for vol key*/
+	mod_delayed_work(system_unbound_wq,
 			 &bdata->work,
 			 msecs_to_jiffies(bdata->software_debounce));
+#endif
 
 	return IRQ_HANDLED;
 }
