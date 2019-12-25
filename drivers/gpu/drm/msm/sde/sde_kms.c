@@ -2527,11 +2527,21 @@ unlock:
 	return 0;
 }
 
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-10-02 fix dp dump on suspend/resume */
+int dp_display_abort(bool abort);
+int dp_display_get_connect(void);
+#endif /* VENDOR_EDIT */
+
 static int sde_kms_pm_resume(struct device *dev)
 {
 	struct drm_device *ddev;
 	struct sde_kms *sde_kms;
 	int ret;
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-10-02 fix dp dump on suspend/resume */
+	bool dp_status;
+#endif /* VENDOR_EDIT */
 
 	if (!dev)
 		return -EINVAL;
@@ -2539,6 +2549,13 @@ static int sde_kms_pm_resume(struct device *dev)
 	ddev = dev_get_drvdata(dev);
 	if (!ddev || !ddev_to_msm_kms(ddev))
 		return -EINVAL;
+
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-10-02 fix dp dump on suspend/resume */
+	dp_status = !!dp_display_get_connect();
+	if (!dp_status)
+		dp_display_abort(true);
+#endif /* VENDOR_EDIT */
 
 	sde_kms = to_sde_kms(ddev_to_msm_kms(ddev));
 
@@ -2561,6 +2578,12 @@ static int sde_kms_pm_resume(struct device *dev)
 		sde_kms->suspend_state = NULL;
 	}
 	drm_modeset_unlock_all(ddev);
+
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-10-02 fix dp dump on suspend/resume */
+	if (!dp_status)
+		dp_display_abort(false);
+#endif
 
 	/* enable hot-plug polling */
 	drm_kms_helper_poll_enable(ddev);
@@ -2625,6 +2648,55 @@ static int _sde_kms_mmu_destroy(struct sde_kms *sde_kms)
 
 	return 0;
 }
+
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-11-06 don't panic if smmu fault*/
+#if (defined(CONFIG_OPPO_DAILY_BUILD) || defined(CONFIG_OPPO_SPECIAL_BUILD))
+int sde_kms_set_smmu_no_fatal_faults(struct drm_device *drm)
+{
+	SDE_ERROR("not support disable smmu panic on daliy or special build\n");
+	return 0;
+}
+#else
+int sde_kms_set_smmu_no_fatal_faults(struct drm_device *drm)
+{
+	struct msm_drm_private *priv = drm->dev_private;
+	struct msm_kms *kms = priv->kms;
+	struct sde_kms *sde_kms;
+	int i, ret = 0;
+
+	if (!kms) {
+		SDE_ERROR("failed to set smmu no fatal fault\n");
+		return -EFAULT;
+	}
+
+	sde_kms = to_sde_kms(kms);
+
+	for (i = 0; i < MSM_SMMU_DOMAIN_MAX; i++) {
+		struct msm_gem_address_space *aspace = sde_kms->aspace[i];
+		struct msm_mmu *mmu;
+		int data = 1;
+
+		if (!aspace)
+			continue;
+
+		mmu = sde_kms->aspace[i]->mmu;
+		if (!mmu)
+			continue;
+		ret = mmu->funcs->set_attribute(mmu, DOMAIN_ATTR_NON_FATAL_FAULTS,
+						&data);
+		if (ret) {
+			SDE_ERROR("failed to set display mmu[%d] ret=%d\n",
+				  i, ret);
+			continue;
+		}
+	}
+	SDE_ERROR("disable smmu panic success\n");
+
+	return ret;
+}
+#endif
+#endif
 
 static int _sde_kms_mmu_init(struct sde_kms *sde_kms)
 {

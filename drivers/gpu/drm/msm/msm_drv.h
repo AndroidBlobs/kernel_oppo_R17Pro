@@ -116,6 +116,10 @@ enum msm_mdp_plane_property {
 	PLANE_PROP_PREFILL_TIME,
 	PLANE_PROP_SCALER_V1,
 	PLANE_PROP_SCALER_V2,
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Feature,2018-07-06 support custom propertys */
+	PLANE_PROP_CUSTOM,
+#endif /* VENDOR_EDIT */
 
 	/* enum/bitmask properties */
 	PLANE_PROP_ROTATION,
@@ -155,6 +159,10 @@ enum msm_mdp_crtc_property {
 	CRTC_PROP_SECURITY_LEVEL,
 	CRTC_PROP_IDLE_TIMEOUT,
 	CRTC_PROP_DEST_SCALER,
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Feature,2018-07-06 support custom propertys */
+	CRTC_PROP_CUSTOM,
+#endif
 
 	/* total # of properties */
 	CRTC_PROP_COUNT
@@ -182,6 +190,10 @@ enum msm_mdp_conn_property {
 	CONNECTOR_PROP_ROI_V1,
 	CONNECTOR_PROP_BL_SCALE,
 	CONNECTOR_PROP_AD_BL_SCALE,
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Feature,2018-07-06 support custom propertys */
+	CONNECTOR_PROP_CUSTOM,
+#endif
 
 	/* enum/bitmask properties */
 	CONNECTOR_PROP_TOPOLOGY_NAME,

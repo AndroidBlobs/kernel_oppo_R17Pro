@@ -266,6 +266,21 @@ enum dsi_cmd_set_type {
 	DSI_CMD_SET_ROI,
 	DSI_CMD_SET_TIMING_SWITCH,
 	DSI_CMD_SET_POST_TIMING_SWITCH,
+#ifdef VENDOR_EDIT
+/* Mark.Yao@PSW.MM.Display.LCD.Stability,2018/07/03, optimize screen on*/
+	DSI_CMD_POST_ON_BACKLIGHT,
+//*mark.yao@PSW.MM.Display.LCD.Stability,2018/4/28,add for support aod,hbm,seed*/
+	DSI_CMD_AOD_ON,
+	DSI_CMD_AOD_OFF,
+	DSI_CMD_HBM_ON,
+	DSI_CMD_HBM_OFF,
+	DSI_CMD_AOD_HBM_ON,
+	DSI_CMD_AOD_HBM_OFF,
+/*mark.yao@PSW.MM.Display.LCD.Stability,2018/4/28,add for sRGB and DCI-P3*/
+	DSI_CMD_SEED_DCI_P3,
+	DSI_CMD_SEED_SRGB,
+	DSI_CMD_SEED_OFF,
+#endif
 	DSI_CMD_SET_MAX
 };
 
@@ -595,6 +610,7 @@ enum dsi_error_status {
 	DSI_FIFO_OVERFLOW = 1,
 	DSI_FIFO_UNDERFLOW,
 	DSI_LP_Rx_TIMEOUT,
+	DSI_ERR_INTR_ALL,
 };
 
 #endif /* _DSI_DEFS_H_ */

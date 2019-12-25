@@ -448,6 +448,25 @@ error:
 	return rc;
 }
 
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-10-02 fix dp dump on suspend/resume */
+extern int usbpd_get_plug_status(struct usbpd *pd);
+int dp_get_usbpd_connect_status(struct dp_usbpd *dp_usbpd)
+{
+	struct dp_usbpd_private *usbpd;
+	int connect = 0;
+
+	if (!dp_usbpd)
+		return connect;
+
+	usbpd = container_of(dp_usbpd, struct dp_usbpd_private, dp_usbpd);
+
+	connect = usbpd_get_plug_status(usbpd->pd);
+
+	return connect;
+}
+#endif /* VENDOR_EDIT */
+
 struct dp_usbpd *dp_usbpd_get(struct device *dev, struct dp_usbpd_cb *cb)
 {
 	int rc = 0;

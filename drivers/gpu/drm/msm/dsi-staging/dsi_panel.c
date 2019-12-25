@@ -376,7 +376,7 @@ static int dsi_panel_reset(struct dsi_panel *panel)
 
 		if (r_config->sequence[i].sleep_ms)
 			usleep_range(r_config->sequence[i].sleep_ms * 1000,
-				     r_config->sequence[i].sleep_ms * 1000);
+				(r_config->sequence[i].sleep_ms * 1000) + 100);
 	}
 
 	if (gpio_is_valid(panel->bl_config.en_gpio)) {
@@ -491,8 +491,16 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 
 	return rc;
 }
+
+#ifndef VENDOR_EDIT
+/*mark.yao@PSW.MM.Display.LCD.Stability,2018/4/28,add for oppo display new structure*/
 static int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 				enum dsi_cmd_set_type type)
+#else  /*VENDOR_EDIT*/
+const char *cmd_set_prop_map[];
+int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
+				enum dsi_cmd_set_type type)
+#endif /*VENDOR_EDIT*/
 {
 	int rc = 0, i = 0;
 	ssize_t len;
@@ -514,6 +522,7 @@ static int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 	count = mode->priv_info->cmd_sets[type].count;
 	state = mode->priv_info->cmd_sets[type].state;
 
+	pr_err("dsi_cmd %s\n", cmd_set_prop_map[type]);
 	if (count == 0) {
 		pr_debug("[%s] No commands to be sent for state(%d)\n",
 			 panel->name, type);
@@ -638,6 +647,11 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 
 	dsi = &panel->mipi_device;
 
+	#ifdef VENDOR_EDIT
+	/*Mark.Yao@PSW.MM.Display.LCD.Feature,2018-06-21 temp add for OnScreenFingerprint feature*/
+	if (panel->is_hbm_enabled)
+		return 0;
+	#endif /* VENDOR_EDIT */
 	rc = mipi_dsi_dcs_set_display_brightness(dsi, bl_lvl);
 	if (rc < 0)
 		pr_err("failed to update dcs backlight:%d\n", bl_lvl);
@@ -1388,6 +1402,9 @@ static int dsi_panel_parse_phy_props(struct dsi_panel_phy_props *props,
 error:
 	return rc;
 }
+
+#ifndef VENDOR_EDIT
+//*mark.yao@PSW.MM.Display.LCD.Stability,2018/4/28,add for support aod,hbm,seed*/
 const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-pre-on-command",
 	"qcom,mdss-dsi-on-command",
@@ -1435,6 +1452,76 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-timing-switch-command-state",
 	"qcom,mdss-dsi-post-mode-switch-on-command-state",
 };
+
+#else /*VENDOR_EDIT*/
+const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
+	"qcom,mdss-dsi-pre-on-command",
+	"qcom,mdss-dsi-on-command",
+	"qcom,mdss-dsi-post-panel-on-command",
+	"qcom,mdss-dsi-pre-off-command",
+	"qcom,mdss-dsi-off-command",
+	"qcom,mdss-dsi-post-off-command",
+	"qcom,mdss-dsi-pre-res-switch",
+	"qcom,mdss-dsi-res-switch",
+	"qcom,mdss-dsi-post-res-switch",
+	"qcom,cmd-to-video-mode-switch-commands",
+	"qcom,cmd-to-video-mode-post-switch-commands",
+	"qcom,video-to-cmd-mode-switch-commands",
+	"qcom,video-to-cmd-mode-post-switch-commands",
+	"qcom,mdss-dsi-panel-status-command",
+	"qcom,mdss-dsi-lp1-command",
+	"qcom,mdss-dsi-lp2-command",
+	"qcom,mdss-dsi-nolp-command",
+	"PPS not parsed from DTSI, generated dynamically",
+	"ROI not parsed from DTSI, generated dynamically",
+	"qcom,mdss-dsi-timing-switch-command",
+	"qcom,mdss-dsi-post-mode-switch-on-command",
+	"qcom,mdss-dsi-post-on-backlight",
+	"qcom,mdss-dsi-aod-on-command",
+	"qcom,mdss-dsi-aod-off-command",
+	"qcom,mdss-dsi-hbm-on-command",
+	"qcom,mdss-dsi-hbm-off-command",
+	"qcom,mdss-dsi-aod-hbm-on-command",
+	"qcom,mdss-dsi-aod-hbm-off-command",
+	"qcom,mdss-dsi-seed-dcip3-command",
+	"qcom,mdss-dsi-seed-srgb-command",
+	"qcom,mdss-dsi-seed-off-command",
+};
+
+const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
+	"qcom,mdss-dsi-pre-on-command-state",
+	"qcom,mdss-dsi-on-command-state",
+	"qcom,mdss-dsi-post-on-command-state",
+	"qcom,mdss-dsi-pre-off-command-state",
+	"qcom,mdss-dsi-off-command-state",
+	"qcom,mdss-dsi-post-off-command-state",
+	"qcom,mdss-dsi-pre-res-switch-state",
+	"qcom,mdss-dsi-res-switch-state",
+	"qcom,mdss-dsi-post-res-switch-state",
+	"qcom,cmd-to-video-mode-switch-commands-state",
+	"qcom,cmd-to-video-mode-post-switch-commands-state",
+	"qcom,video-to-cmd-mode-switch-commands-state",
+	"qcom,video-to-cmd-mode-post-switch-commands-state",
+	"qcom,mdss-dsi-panel-status-command-state",
+	"qcom,mdss-dsi-lp1-command-state",
+	"qcom,mdss-dsi-lp2-command-state",
+	"qcom,mdss-dsi-nolp-command-state",
+	"PPS not parsed from DTSI, generated dynamically",
+	"ROI not parsed from DTSI, generated dynamically",
+	"qcom,mdss-dsi-timing-switch-command-state",
+	"qcom,mdss-dsi-post-mode-switch-on-command-state",
+	"qcom,mdss-dsi-post-on-backlight-state",
+	"qcom,mdss-dsi-aod-on-command-state",
+	"qcom,mdss-dsi-aod-off-command-state",
+	"qcom,mdss-dsi-hbm-on-command-state",
+	"qcom,mdss-dsi-hbm-off-command-state",
+	"qcom,mdss-dsi-aod-hbm-on-command-state",
+	"qcom,mdss-dsi-aod-hbm-off-command-state",
+	"qcom,mdss-dsi-seed-dcip3-command-state",
+	"qcom,mdss-dsi-seed-srgb-command-state",
+	"qcom,mdss-dsi-seed-off-command-state",
+};
+#endif /*VENDOR_EDIT*/
 
 static int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt)
 {
@@ -1706,6 +1793,15 @@ static int dsi_panel_parse_misc_features(struct dsi_panel *panel,
 
 	pr_info("%s: ulps during suspend feature %s", __func__,
 		(panel->ulps_suspend_enabled ? "enabled" : "disabled"));
+
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.Lcd.Stability,2018/5/26,for lp11_init*/
+	panel->lp11_init =
+		of_property_read_bool(of_node, "qcom,mdss-dsi-lp11-init");
+
+	pr_info("%s: lp11_init feature %s\n", __func__,
+		(panel->lp11_init ? "enabled" : "disabled"));
+#endif
 
 	panel->te_using_watchdog_timer = of_property_read_bool(of_node,
 					"qcom,mdss-dsi-te-using-wd");
@@ -3203,7 +3299,12 @@ int dsi_panel_get_host_cfg_for_mode(struct dsi_panel *panel,
 		config->video_timing.dsc = &mode->priv_info->dsc;
 		config->bit_clk_rate_hz = mode->priv_info->clk_rate_hz;
 	}
+#ifndef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.Lcd.Stability, 2018-05-31,add for solve mipi lpx fail*/
 	config->esc_clk_rate_hz = 19200000;
+#else /*VENDOR_EDIT*/
+	config->esc_clk_rate_hz = 9600000;
+#endif /*VENDOR_EDIT*/
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
@@ -3289,11 +3390,21 @@ int dsi_panel_set_lp1(struct dsi_panel *panel)
 	if (panel->type == EXT_BRIDGE)
 		return 0;
 
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.Lcd.Stability, 2018-05-31,add to mark power states*/
+	pr_err("debug for dsi_panel_set_lp1\n");
+#endif
 	mutex_lock(&panel->panel_lock);
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_LP1);
 	if (rc)
 		pr_err("[%s] failed to send DSI_CMD_SET_LP1 cmd, rc=%d\n",
 		       panel->name, rc);
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-08-15 fix aod flash problem */
+	panel->need_power_on_backlight = true;
+//*Mark.Yao@PSW.MM.Display.LCD.Stability,2018/4/3,set and save display status*/
+	set_oppo_display_power_status(OPPO_DISPLAY_POWER_DOZE);
+#endif
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
@@ -3310,11 +3421,19 @@ int dsi_panel_set_lp2(struct dsi_panel *panel)
 	if (panel->type == EXT_BRIDGE)
 		return 0;
 
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.Lcd.Stability, 2018-05-31,add to mark power states*/
+	pr_err("debug for dsi_panel_set_lp2\n");
+#endif
 	mutex_lock(&panel->panel_lock);
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_LP2);
 	if (rc)
 		pr_err("[%s] failed to send DSI_CMD_SET_LP2 cmd, rc=%d\n",
 		       panel->name, rc);
+#ifdef VENDOR_EDIT
+//*Mark.Yao@PSW.MM.Display.LCD.Stability,2018/4/3,set and save display status*/
+	set_oppo_display_power_status(OPPO_DISPLAY_POWER_DOZE_SUSPEND);
+#endif
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
@@ -3331,11 +3450,19 @@ int dsi_panel_set_nolp(struct dsi_panel *panel)
 	if (panel->type == EXT_BRIDGE)
 		return 0;
 
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.Lcd.Stability, 2018-05-31,add to mark power states*/
+	pr_err("debug for dsi_panel_set_nolp\n");
+#endif
 	mutex_lock(&panel->panel_lock);
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NOLP);
 	if (rc)
 		pr_err("[%s] failed to send DSI_CMD_SET_NOLP cmd, rc=%d\n",
 		       panel->name, rc);
+#ifdef VENDOR_EDIT
+//*Mark.Yao@PSW.MM.Display.LCD.Stability,2018/4/3,set and save display status*/
+	set_oppo_display_power_status(OPPO_DISPLAY_POWER_ON);
+#endif
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
@@ -3362,6 +3489,11 @@ int dsi_panel_prepare(struct dsi_panel *panel)
 			goto error;
 		}
 	}
+
+	#ifdef VENDOR_EDIT
+	/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-07-17 need wait 5ms after lp11 init */
+	usleep_range(5 * 1000, 5 * 1000);
+	#endif /* VENDOR_EDIT */
 
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_PRE_ON);
 	if (rc) {
@@ -3551,6 +3683,10 @@ int dsi_panel_enable(struct dsi_panel *panel)
 	if (panel->type == EXT_BRIDGE)
 		return 0;
 
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.Lcd.Stability, 2018-05-31,add to mark power states*/
+	pr_err("debug for dsi_panel_enable\n");
+#endif
 	mutex_lock(&panel->panel_lock);
 
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON);
@@ -3559,6 +3695,14 @@ int dsi_panel_enable(struct dsi_panel *panel)
 		       panel->name, rc);
 	}
 	panel->panel_initialized = true;
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-08-23 avoid screen flash when esd reset */
+	panel->need_power_on_backlight = true;
+#endif
+#ifdef VENDOR_EDIT
+//*mark.yao@PSW.MM.Display.LCD.Stability,2018/4/28,add for save display panel power status at oppo display management*/
+	set_oppo_display_power_status(OPPO_DISPLAY_POWER_ON);
+#endif
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
@@ -3626,17 +3770,32 @@ int dsi_panel_disable(struct dsi_panel *panel)
 	if (panel->type == EXT_BRIDGE)
 		return 0;
 
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.Lcd.Stability, 2018-05-31,add to mark power states*/
+	pr_err("debug for dsi_panel_disable\n");
+#endif
 	mutex_lock(&panel->panel_lock);
 
-	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_OFF);
-	if (rc) {
-		pr_err("[%s] failed to send DSI_CMD_SET_OFF cmds, rc=%d\n",
-		       panel->name, rc);
-		goto error;
+	/* Avoid sending panel off commands when ESD recovery is underway */
+	if (!atomic_read(&panel->esd_recovery_pending)) {
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_OFF);
+		if (rc) {
+			pr_err("[%s] failed to send DSI_CMD_SET_OFF cmds, rc=%d\n",
+					panel->name, rc);
+			goto error;
+		}
 	}
 	panel->panel_initialized = false;
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-08-23 fix esd not work when enable OnScreenFingerprint */
+	panel->is_hbm_enabled = false;
+#endif /* VENDOR_EDIT */
 
 error:
+#ifdef VENDOR_EDIT
+//*mark.yao@PSW.MM.Display.LCD.Stability,2018/4/28,add for save display panel power status at oppo display management*/
+	set_oppo_display_power_status(OPPO_DISPLAY_POWER_OFF);
+#endif
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }

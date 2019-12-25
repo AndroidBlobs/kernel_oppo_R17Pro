@@ -89,6 +89,11 @@ static void sde_cp_ad_set_prop(struct sde_crtc *sde_crtc,
 
 static void sde_cp_notify_hist_event(struct drm_crtc *crtc_drm, void *arg);
 
+#ifdef VENDOR_EDIT
+//Xiaori.Yuan@MM.Display.LCD.Feature, 2018/07/10, Add for AD
+static void sde_cp_update_ad_vsync_prop(struct sde_crtc *sde_crtc, u32 val);
+#endif /* VENDOR_EDIT */
+
 #define setup_dspp_prop_install_funcs(func) \
 do { \
 	func[SDE_DSPP_PCC] = dspp_pcc_install_property; \
@@ -138,6 +143,10 @@ enum {
 	SDE_CP_CRTC_DSPP_AD_ASSERTIVENESS,
 	SDE_CP_CRTC_DSPP_AD_BACKLIGHT,
 	SDE_CP_CRTC_DSPP_AD_STRENGTH,
+#ifdef VENDOR_EDIT
+//Xiaori.Yuan@MM.Display.LCD.Feature, 2018/07/10, Add for AD
+	SDE_CP_CRTC_DSPP_AD_VSYNC_COUNT,
+#endif /* VENDOR_EDIT */
 	SDE_CP_CRTC_DSPP_MAX,
 	/* DSPP features end */
 
@@ -407,6 +416,10 @@ void sde_cp_crtc_init(struct drm_crtc *crtc)
 	if (IS_ERR(sde_crtc->hist_blob))
 		sde_crtc->hist_blob = NULL;
 
+#ifdef VENDOR_EDIT
+//Xiaori.Yuan@MM.Display.LCD.Feature, 2018/07/10, Add for AD
+	sde_crtc->ad_vsync_count = 0;
+#endif /* VENDOR_EDIT */
 	mutex_init(&sde_crtc->crtc_cp_lock);
 	INIT_LIST_HEAD(&sde_crtc->active_list);
 	INIT_LIST_HEAD(&sde_crtc->dirty_list);
@@ -789,6 +802,12 @@ static void sde_cp_crtc_setfeature(struct sde_cp_node *prop_node,
 			ad_cfg.prop = AD_MODE;
 			ad_cfg.hw_cfg = &hw_cfg;
 			hw_dspp->ops.setup_ad(hw_dspp, &ad_cfg);
+#ifdef VENDOR_EDIT
+//Xiaori.Yuan@MM.Display.LCD.Feature, 2018/07/10, Add for AD
+			sde_crtc->ad_vsync_count = 0;
+			sde_cp_update_ad_vsync_prop(sde_crtc,
+					sde_crtc->ad_vsync_count);
+#endif /* VENDOR_EDIT */
 			break;
 		case SDE_CP_CRTC_DSPP_AD_INIT:
 			if (!hw_dspp || !hw_dspp->ops.setup_ad) {
@@ -798,6 +817,12 @@ static void sde_cp_crtc_setfeature(struct sde_cp_node *prop_node,
 			ad_cfg.prop = AD_INIT;
 			ad_cfg.hw_cfg = &hw_cfg;
 			hw_dspp->ops.setup_ad(hw_dspp, &ad_cfg);
+#ifdef VENDOR_EDIT
+//Xiaori.Yuan@MM.Display.LCD.Feature, 2018/07/10, Add for AD
+			sde_crtc->ad_vsync_count = 0;
+			sde_cp_update_ad_vsync_prop(sde_crtc,
+					sde_crtc->ad_vsync_count);
+#endif /* VENDOR_EDIT */
 			break;
 		case SDE_CP_CRTC_DSPP_AD_CFG:
 			if (!hw_dspp || !hw_dspp->ops.setup_ad) {
@@ -807,6 +832,12 @@ static void sde_cp_crtc_setfeature(struct sde_cp_node *prop_node,
 			ad_cfg.prop = AD_CFG;
 			ad_cfg.hw_cfg = &hw_cfg;
 			hw_dspp->ops.setup_ad(hw_dspp, &ad_cfg);
+#ifdef VENDOR_EDIT
+//Xiaori.Yuan@MM.Display.LCD.Feature, 2018/07/10, Add for AD
+			sde_crtc->ad_vsync_count = 0;
+			sde_cp_update_ad_vsync_prop(sde_crtc,
+					sde_crtc->ad_vsync_count);
+#endif /* VENDOR_EDIT */
 			break;
 		case SDE_CP_CRTC_DSPP_AD_INPUT:
 			if (!hw_dspp || !hw_dspp->ops.setup_ad) {
@@ -816,6 +847,12 @@ static void sde_cp_crtc_setfeature(struct sde_cp_node *prop_node,
 			ad_cfg.prop = AD_INPUT;
 			ad_cfg.hw_cfg = &hw_cfg;
 			hw_dspp->ops.setup_ad(hw_dspp, &ad_cfg);
+#ifdef VENDOR_EDIT
+//Xiaori.Yuan@MM.Display.LCD.Feature, 2018/07/10, Add for AD
+			sde_crtc->ad_vsync_count = 0;
+			sde_cp_update_ad_vsync_prop(sde_crtc,
+					sde_crtc->ad_vsync_count);
+#endif /* VENDOR_EDIT */
 			break;
 		case SDE_CP_CRTC_DSPP_AD_ASSERTIVENESS:
 			if (!hw_dspp || !hw_dspp->ops.setup_ad) {
@@ -825,6 +862,12 @@ static void sde_cp_crtc_setfeature(struct sde_cp_node *prop_node,
 			ad_cfg.prop = AD_ASSERTIVE;
 			ad_cfg.hw_cfg = &hw_cfg;
 			hw_dspp->ops.setup_ad(hw_dspp, &ad_cfg);
+#ifdef VENDOR_EDIT
+//Xiaori.Yuan@MM.Display.LCD.Feature, 2018/07/10, Add for AD
+			sde_crtc->ad_vsync_count = 0;
+			sde_cp_update_ad_vsync_prop(sde_crtc,
+					sde_crtc->ad_vsync_count);
+#endif /* VENDOR_EDIT */
 			break;
 		case SDE_CP_CRTC_DSPP_AD_BACKLIGHT:
 			if (!hw_dspp || !hw_dspp->ops.setup_ad) {
@@ -834,6 +877,12 @@ static void sde_cp_crtc_setfeature(struct sde_cp_node *prop_node,
 			ad_cfg.prop = AD_BACKLIGHT;
 			ad_cfg.hw_cfg = &hw_cfg;
 			hw_dspp->ops.setup_ad(hw_dspp, &ad_cfg);
+#ifdef VENDOR_EDIT
+//Xiaori.Yuan@MM.Display.LCD.Feature, 2018/07/10, Add for AD
+			sde_crtc->ad_vsync_count = 0;
+			sde_cp_update_ad_vsync_prop(sde_crtc,
+					sde_crtc->ad_vsync_count);
+#endif /* VENDOR_EDIT */
 			break;
 		case SDE_CP_CRTC_DSPP_AD_STRENGTH:
 			if (!hw_dspp || !hw_dspp->ops.setup_ad) {
@@ -843,6 +892,12 @@ static void sde_cp_crtc_setfeature(struct sde_cp_node *prop_node,
 			ad_cfg.prop = AD_STRENGTH;
 			ad_cfg.hw_cfg = &hw_cfg;
 			hw_dspp->ops.setup_ad(hw_dspp, &ad_cfg);
+#ifdef VENDOR_EDIT
+//Xiaori.Yuan@MM.Display.LCD.Feature, 2018/07/10, Add for AD
+			sde_crtc->ad_vsync_count = 0;
+			sde_cp_update_ad_vsync_prop(sde_crtc,
+					sde_crtc->ad_vsync_count);
+#endif /* VENDOR_EDIT */
 			break;
 		default:
 			ret = -EINVAL;
@@ -924,10 +979,23 @@ void sde_cp_crtc_apply_properties(struct drm_crtc *crtc)
 			DRM_DEBUG_DRIVER("Dirty list is empty\n");
 			goto exit;
 		}
+		#ifndef VENDOR_EDIT
+		//Xiaori.Yuan@MM.Display.LCD.Feature, 2018/07/10, Remove for AD
+		/*
 		sde_cp_ad_set_prop(sde_crtc, AD_IPC_RESET);
+		*/
+		#endif /* VENDOR_EDIT */
 		set_dspp_flush = true;
 	}
 
+#ifdef VENDOR_EDIT
+//Xiaori.Yuan@MM.Display.LCD.Feature, 2018/07/10, Add for AD
+	if (!list_empty(&sde_crtc->ad_active)) {
+		sde_cp_ad_set_prop(sde_crtc, AD_IPC_RESET);
+		sde_cp_ad_set_prop(sde_crtc, AD_VSYNC_UPDATE);
+		sde_cp_update_ad_vsync_prop(sde_crtc, sde_crtc->ad_vsync_count);
+	}
+#endif /* VENDOR_EDIT */
 	list_for_each_entry_safe(prop_node, n, &sde_crtc->dirty_list,
 				dirty_list) {
 		sde_dspp_feature = crtc_feature_map[prop_node->feature];
@@ -1444,6 +1512,12 @@ static void dspp_ad_install_property(struct drm_crtc *crtc)
 				"SDE_DSPP_AD_V4_BACKLIGHT",
 			SDE_CP_CRTC_DSPP_AD_BACKLIGHT, 0, (BIT(16) - 1),
 			0);
+#ifdef VENDOR_EDIT
+//Xiaori.Yuan@MM.Display.LCD.Feature, 2018/07/10, Add for AD
+		sde_cp_crtc_install_range_property(crtc,
+			"SDE_DSPP_AD_V4_VSYNC_COUNT",
+			SDE_CP_CRTC_DSPP_AD_VSYNC_COUNT, 0, U32_MAX, 0);
+#endif /* VENDOR_EDIT */
 		break;
 	default:
 		DRM_ERROR("version %d not supported\n", version);
@@ -1862,6 +1936,13 @@ static void sde_cp_ad_set_prop(struct sde_crtc *sde_crtc,
 		hw_cfg.displayh = num_mixers * hw_lm->cfg.out_width;
 		hw_cfg.displayv = hw_lm->cfg.out_height;
 		hw_cfg.mixer_info = hw_lm;
+		#ifdef VENDOR_EDIT
+		//Xiaori.Yuan@MM.Display.Service.Feature, 2018/07/10, Add for AD
+		if (ad_prop == AD_VSYNC_UPDATE) {
+			hw_cfg.payload = &sde_crtc->ad_vsync_count;
+			hw_cfg.len = sizeof(sde_crtc->ad_vsync_count);
+		}
+		#endif /* VENDOR_EDIT */
 		ad_cfg.prop = ad_prop;
 		ad_cfg.hw_cfg = &hw_cfg;
 		ret = hw_dspp->ops.validate_ad(hw_dspp, (u32 *)&ad_prop);
@@ -2113,3 +2194,38 @@ int sde_cp_hist_interrupt(struct drm_crtc *crtc_drm, bool en,
 exit:
 	return ret;
 }
+
+#ifdef VENDOR_EDIT
+//Xiaori.Yuan@MM.Display.LCD.Feature, 2018/07/10, Add for AD
+void sde_cp_update_ad_vsync_count(struct drm_crtc *crtc, u32 val)
+{
+	struct sde_crtc *sde_crtc;
+
+	if (!crtc) {
+		DRM_ERROR("invalid crtc %pK\n", crtc);
+		return;
+	}
+
+	sde_crtc = to_sde_crtc(crtc);
+	if (!sde_crtc) {
+		DRM_ERROR("invalid sde_crtc %pK\n", sde_crtc);
+		return;
+	}
+
+	sde_crtc->ad_vsync_count = val;
+	sde_cp_update_ad_vsync_prop(sde_crtc, val);
+}
+
+static void sde_cp_update_ad_vsync_prop(struct sde_crtc *sde_crtc, u32 val)
+{
+	struct sde_cp_node *prop_node = NULL;
+
+	list_for_each_entry(prop_node, &sde_crtc->feature_list, feature_list) {
+		if (prop_node->feature == SDE_CP_CRTC_DSPP_AD_VSYNC_COUNT) {
+			prop_node->prop_val = val;
+			pr_debug("AD vsync count updated to %d\n", val);
+			return;
+		}
+	}
+}
+#endif /* VENDOR_EDIT */

@@ -27,6 +27,10 @@
 #include "dsi_ctrl.h"
 #include "dsi_phy.h"
 #include "dsi_panel.h"
+//#ifdef VENDOR_EDIT
+/*mark.yao@PSW.MM.Display.LCD.Stability,2018/4/28,add for save select panel and give different feature*/
+#include <linux/dsi_oppo_support.h>
+//#endif /*VENDOR_EDIT*/
 
 #define MAX_DSI_CTRLS_PER_DISPLAY             2
 #define DSI_CLIENT_NAME_SIZE		20
@@ -497,12 +501,14 @@ int dsi_display_disable(struct dsi_display *display);
  * dsi_pre_clkoff_cb() - Callback before clock is turned off
  * @priv: private data pointer.
  * @clk_type: clock which is being turned on.
+ * @l_type: specifies if the clock is HS or LP type. Valid only for link clocks.
  * @new_state: next state for the clock.
  *
  * @return: error code.
  */
 int dsi_pre_clkoff_cb(void *priv, enum dsi_clk_type clk_type,
-	enum dsi_clk_state new_state);
+		enum dsi_lclk_type l_type,
+		enum dsi_clk_state new_state);
 
 /**
  * dsi_display_update_pps() - update PPS buffer.
@@ -519,35 +525,40 @@ int dsi_display_update_pps(char *pps_cmd, void *display);
  * dsi_post_clkoff_cb() - Callback after clock is turned off
  * @priv: private data pointer.
  * @clk_type: clock which is being turned on.
+ * @l_type: specifies if the clock is HS or LP type. Valid only for link clocks.
  * @curr_state: current state for the clock.
  *
  * @return: error code.
  */
 int dsi_post_clkoff_cb(void *priv, enum dsi_clk_type clk_type,
-	enum dsi_clk_state curr_state);
+		enum dsi_lclk_type l_type,
+		enum dsi_clk_state curr_state);
 
 /**
  * dsi_post_clkon_cb() - Callback after clock is turned on
  * @priv: private data pointer.
  * @clk_type: clock which is being turned on.
+ * @l_type: specifies if the clock is HS or LP type. Valid only for link clocks.
  * @curr_state: current state for the clock.
  *
  * @return: error code.
  */
 int dsi_post_clkon_cb(void *priv, enum dsi_clk_type clk_type,
-	enum dsi_clk_state curr_state);
-
+		enum dsi_lclk_type l_type,
+		enum dsi_clk_state curr_state);
 
 /**
  * dsi_pre_clkon_cb() - Callback before clock is turned on
  * @priv: private data pointer.
  * @clk_type: clock which is being turned on.
+ * @l_type: specifies if the clock is HS or LP type. Valid only for link clocks.
  * @new_state: next state for the clock.
  *
  * @return: error code.
  */
 int dsi_pre_clkon_cb(void *priv, enum dsi_clk_type clk_type,
-	enum dsi_clk_state new_state);
+		enum dsi_lclk_type l_type,
+		enum dsi_clk_state new_state);
 
 /**
  * dsi_display_unprepare() - power off display hardware.
@@ -648,6 +659,17 @@ enum dsi_pixel_format dsi_display_get_dst_format(void *display);
  * Return: Zero on Success
  */
 int dsi_display_cont_splash_config(void *display);
+
+#ifdef VENDOR_EDIT
+//*mark.yao@PSW.MM.Display.LCD.Stability,2018/4/28,add for support aod,hbm,seed*/
+struct dsi_display *get_main_display(void);
+
+//*mark.yao@PSW.MM.Display.LCD.Stability,2018/4/28, just modify for implement panel register read*/
+int dsi_host_alloc_cmd_tx_buffer(struct dsi_display *display);
+int dsi_display_cmd_engine_enable(struct dsi_display *display);
+int dsi_display_cmd_engine_disable(struct dsi_display *display);
+#endif
+
 /*
  * dsi_display_get_panel_vfp - get panel vsync
  * @display: Pointer to private display structure
@@ -657,5 +679,6 @@ int dsi_display_cont_splash_config(void *display);
  */
 int dsi_display_get_panel_vfp(void *display,
 	int h_active, int v_active);
+
 
 #endif /* _DSI_DISPLAY_H_ */

@@ -493,6 +493,10 @@ static int _sde_connector_update_bl_scale(struct sde_connector *c_conn)
 {
 	struct dsi_display *dsi_display;
 	struct dsi_backlight_config *bl_config;
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-07-25 fix backlight race problem */
+	struct backlight_device *bd;
+#endif /* VENDOR_EDIT */
 	int rc = 0;
 
 	if (!c_conn) {
@@ -507,6 +511,17 @@ static int _sde_connector_update_bl_scale(struct sde_connector *c_conn)
 			((dsi_display) ? dsi_display->panel : NULL));
 		return -EINVAL;
 	}
+
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-07-25 fix backlight race problem */
+	bd = c_conn->bl_device;
+	if (!bd) {
+		SDE_ERROR("Invalid params backlight_device null\n");
+		return -EINVAL;
+	}
+
+	mutex_lock(&bd->update_lock);
+#endif /* VENDOR_EDIT */
 
 	bl_config = &dsi_display->panel->bl_config;
 
@@ -525,8 +540,123 @@ static int _sde_connector_update_bl_scale(struct sde_connector *c_conn)
 		bl_config->bl_level);
 	rc = c_conn->ops.set_backlight(dsi_display, bl_config->bl_level);
 
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-07-25 fix backlight race problem */
+	mutex_unlock(&bd->update_lock);
+#endif /* VENDOR_EDIT */
+
 	return rc;
 }
+
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.Service.Feature,2018/06/05,for OnScreenFingerprint feature*/
+extern bool sde_crtc_get_fingerprint_mode(struct drm_crtc_state *crtc_state);
+extern bool sde_crtc_get_fingerprint_pressed(struct drm_crtc_state *crtc_state);
+extern int oppo_display_get_hbm_mode(void);
+extern int sde_crtc_set_onscreenfinger_defer_sync(struct drm_crtc_state *crtc_state, bool defer_sync);
+static int _sde_connector_update_hbm(struct sde_connector *c_conn)
+{
+	struct drm_connector *connector = &c_conn->base;
+	struct dsi_display *dsi_display;
+	struct sde_connector_state *c_state;
+	int rc = 0;
+	int fingerprint_mode;
+
+	if (!c_conn) {
+		SDE_ERROR("Invalid params sde_connector null\n");
+		return -EINVAL;
+	}
+
+	if (c_conn->connector_type != DRM_MODE_CONNECTOR_DSI)
+		return 0;
+
+	c_state = to_sde_connector_state(connector->state);
+
+	dsi_display = c_conn->display;
+	if (!dsi_display || !dsi_display->panel) {
+		SDE_ERROR("Invalid params(s) dsi_display %pK, panel %pK\n",
+			dsi_display,
+			((dsi_display) ? dsi_display->panel : NULL));
+		return -EINVAL;
+	}
+
+	if (!c_conn->encoder || !c_conn->encoder->crtc ||
+	    !c_conn->encoder->crtc->state) {
+		return 0;
+	}
+
+	fingerprint_mode = sde_crtc_get_fingerprint_mode(c_conn->encoder->crtc->state);
+	if (OPPO_DISPLAY_AOD_SCENE == get_oppo_display_scene()) {
+		if (sde_crtc_get_fingerprint_pressed(c_conn->encoder->crtc->state)) {
+			sde_crtc_set_onscreenfinger_defer_sync(c_conn->encoder->crtc->state, true);
+		} else {
+			sde_crtc_set_onscreenfinger_defer_sync(c_conn->encoder->crtc->state, false);
+			fingerprint_mode = false;
+		}
+	} else {
+		sde_crtc_set_onscreenfinger_defer_sync(c_conn->encoder->crtc->state, false);
+	}
+
+	if (fingerprint_mode != dsi_display->panel->is_hbm_enabled) {
+		struct drm_encoder *drm_enc = c_conn->encoder;
+
+		pr_err("OnscreenFingerprint mode: %s",
+		       fingerprint_mode ? "Enter" : "Exit");
+
+		dsi_display->panel->is_hbm_enabled = fingerprint_mode;
+		if (fingerprint_mode) {
+			mutex_lock(&dsi_display->panel->panel_lock);
+
+			if (OPPO_DISPLAY_AOD_SCENE != get_oppo_display_scene() &&
+			    dsi_display->panel->bl_config.bl_level) {
+				sde_encoder_poll_line_counts(drm_enc);
+				rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_HBM_ON);
+			} else {
+				rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_AOD_HBM_ON);
+			}
+
+			mutex_unlock(&dsi_display->panel->panel_lock);
+			if (rc) {
+				pr_err("failed to send DSI_CMD_HBM_ON cmds, rc=%d\n", rc);
+				return rc;
+			}
+		} else {
+			_sde_connector_update_bl_scale(c_conn);
+
+			mutex_lock(&dsi_display->panel->panel_lock);
+
+			sde_encoder_poll_line_counts(drm_enc);
+			if(OPPO_DISPLAY_AOD_HBM_SCENE == get_oppo_display_scene()) {
+				if (OPPO_DISPLAY_POWER_DOZE_SUSPEND == get_oppo_display_power_status() ||
+				    OPPO_DISPLAY_POWER_DOZE == get_oppo_display_power_status()) {
+					rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_AOD_HBM_OFF);
+					set_oppo_display_scene(OPPO_DISPLAY_AOD_SCENE);
+				} else {
+					rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_SET_NOLP);
+					/* set nolp would exit hbm, restore when panel status on hbm */
+					if (oppo_display_get_hbm_mode())
+						rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_AOD_HBM_ON);
+					set_oppo_display_scene(OPPO_DISPLAY_NORMAL_SCENE);
+				}
+			} else if (oppo_display_get_hbm_mode()) {
+				/* Do nothing to skip hbm off */
+			} else if(OPPO_DISPLAY_AOD_SCENE == get_oppo_display_scene()) {
+				rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_AOD_HBM_OFF);
+			} else {
+				rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_HBM_OFF);
+			}
+
+			mutex_unlock(&dsi_display->panel->panel_lock);
+			if (rc) {
+				pr_err("failed to send DSI_CMD_HBM_OFF cmds, rc=%d\n", rc);
+				return rc;
+			}
+		}
+	}
+
+	return 0;
+}
+#endif
 
 static int _sde_connector_update_dirty_properties(
 				struct drm_connector *connector)
@@ -597,6 +727,15 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 		goto end;
 	}
 
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.Service.Feature,2018/06/05,for OnScreenFingerprint feature*/
+	rc = _sde_connector_update_hbm(c_conn);
+	if (rc) {
+		SDE_EVT32(connector->base.id, SDE_EVTLOG_ERROR);
+		goto end;
+	}
+#endif
+
 	if (!c_conn->ops.pre_kickoff)
 		return 0;
 
@@ -625,6 +764,11 @@ void sde_connector_helper_bridge_disable(struct drm_connector *connector)
 				connector->base.id, rc);
 		SDE_EVT32(connector->base.id, SDE_EVTLOG_ERROR);
 	}
+
+	#ifdef VENDOR_EDIT
+	/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-07-16 Add for solve backlight and esd check crash issue*/
+	sde_connector_schedule_status_work(connector, false);
+	#endif
 
 	c_conn = to_sde_connector(connector);
 	if (c_conn->panel_dead) {
@@ -2201,7 +2345,11 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
 	msm_property_install_range(&c_conn->property_info, "ad_bl_scale",
 		0x0, 0, MAX_AD_BL_SCALE_LEVEL, MAX_AD_BL_SCALE_LEVEL,
 		CONNECTOR_PROP_AD_BL_SCALE);
-
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Feature,2018-07-06 support custom propertys */
+	msm_property_install_range(&c_conn->property_info,"CONNECTOR_CUST",
+		0x0, 0, INT_MAX, 0, CONNECTOR_PROP_CUSTOM);
+#endif
 	c_conn->bl_scale_dirty = false;
 	c_conn->bl_scale = MAX_BL_SCALE_LEVEL;
 	c_conn->bl_scale_ad = MAX_AD_BL_SCALE_LEVEL;

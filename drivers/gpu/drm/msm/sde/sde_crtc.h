@@ -199,6 +199,7 @@ struct sde_crtc_event {
  * @dirty_list    : list of color processing features are dirty
  * @ad_dirty: list containing ad properties that are dirty
  * @ad_active: list containing ad properties that are active
+ * @ad_vsync_count : count of vblank since last reset for AD
  * @crtc_lock     : crtc lock around create, destroy and access.
  * @frame_pending : Whether or not an update is pending
  * @frame_events  : static allocation of in-flight frame events
@@ -266,6 +267,10 @@ struct sde_crtc {
 	struct list_head ad_dirty;
 	struct list_head ad_active;
 	struct list_head user_event_list;
+	#ifdef VENDOR_EDIT
+	//Xiaori.Yuan@MM.Display.LCD.Feature, 2018/07/10, Add for AD
+	u32 ad_vsync_count;
+	#endif /* VENDOR_EDIT */
 
 	struct mutex crtc_lock;
 	struct mutex crtc_cp_lock;
@@ -431,6 +436,13 @@ struct sde_crtc_state {
 	bool sbuf_clk_shifted;
 
 	struct sde_crtc_respool rp;
+
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.Service.Feature,2018/06/05,for OnScreenFingerprint feature*/
+	bool fingerprint_pressed;
+	bool fingerprint_defer_sync;
+	struct sde_hw_dim_layer *fingerprint_dim_layer;
+#endif
 };
 
 enum sde_crtc_irq_state {

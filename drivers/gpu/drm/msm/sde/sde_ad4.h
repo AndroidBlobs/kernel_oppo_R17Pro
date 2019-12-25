@@ -52,6 +52,10 @@ enum ad_property {
 	AD_IPC_SUSPEND,
 	AD_IPC_RESUME,
 	AD_IPC_RESET,
+	#ifdef VENDOR_EDIT
+	//Xiaori.Yuan@MM.Display.LCD.Feature, 2018/07/10, Add for AD
+	AD_VSYNC_UPDATE,
+	#endif /* VENDOR_EDIT */
 	AD_PROPMAX,
 };
 

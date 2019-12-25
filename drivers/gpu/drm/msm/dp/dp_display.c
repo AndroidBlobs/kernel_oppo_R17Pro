@@ -39,6 +39,10 @@
 #include "dp_debug.h"
 
 static struct dp_display *g_dp_display;
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-10-03 fix dp dump when resume/suspend */
+static struct dp_display *g_dp_display_real;
+#endif /* VENDOR_EDIT */
 #define HPD_STRING_SIZE 30
 
 struct dp_hdcp {
@@ -357,6 +361,10 @@ static int dp_display_bind(struct device *dev, struct device *master,
 
 	dp->dp_display.drm_dev = drm;
 	dp->priv = drm->dev_private;
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-10-03 fix dp dump when resume/suspend */
+	g_dp_display_real = g_dp_display;
+#endif
 end:
 	return rc;
 }
@@ -377,6 +385,11 @@ static void dp_display_unbind(struct device *dev, struct device *master,
 		pr_err("Invalid params\n");
 		return;
 	}
+
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-10-03 fix dp dump when resume/suspend */
+	g_dp_display_real = NULL;
+#endif
 
 	(void)dp->power->power_client_deinit(dp->power);
 	(void)dp->aux->drm_aux_deregister(dp->aux);
@@ -438,6 +451,11 @@ static void dp_display_send_hpd_event(struct dp_display_private *dp)
 			envp);
 }
 
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-09-01 fix dp dump before sub switch chip init */
+extern bool oppo_dp_sub_switch_ready(void);
+extern int oppo_dp_sub_switch_status_update(void);
+#endif /* VENDOR_EDIT */
 static void dp_display_post_open(struct dp_display *dp_display)
 {
 	struct drm_connector *connector;
@@ -462,6 +480,20 @@ static void dp_display_post_open(struct dp_display *dp_display)
 	}
 
 	/* if cable is already connected, send notification */
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-07-06 fix usbpd null pointer */
+	if (!dp->usbpd) {
+		pr_err("usbpd not set\n");
+		return;
+	}
+
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-09-01 fix dp dump before sub switch chip init */
+	if (!oppo_dp_sub_switch_ready()) {
+		pr_err("sub_switch not ready\n");
+		return;
+	}
+#endif /* VENDOR_EDIT */
+
 	if (dp->usbpd->hpd_high)
 		queue_delayed_work(dp->wq, &dp->connect_work, HZ * 10);
 	else
@@ -501,6 +533,14 @@ static int dp_display_process_hpd_high(struct dp_display_private *dp)
 {
 	int rc = 0;
 	struct edid *edid;
+
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-09-01 fix dp dump before sub switch chip init */
+	if (oppo_dp_sub_switch_status_update() < 0) {
+		pr_err("failed to update dp sub_switch status\n");
+		return -EINVAL;
+	}
+#endif /* VENDOR_EDIT */
 
 	dp->aux->init(dp->aux, dp->parser->aux_cfg);
 
@@ -729,6 +769,11 @@ static void dp_display_attention_work(struct work_struct *work)
 	struct dp_display_private *dp = container_of(work,
 			struct dp_display_private, attention_work);
 
+	if (!dp->core_initialized)
+		return;
+
+	dp->link->process_request(dp->link);
+
 	if (dp_display_is_hdcp_enabled(dp) && dp->hdcp.ops->cp_irq) {
 		if (!dp->hdcp.ops->cp_irq(dp->hdcp.data))
 			return;
@@ -773,6 +818,45 @@ static void dp_display_attention_work(struct work_struct *work)
 	}
 }
 
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2018-10-02 fix dp dump on suspend/resume */
+int dp_get_usbpd_connect_status(struct dp_usbpd *dp_usbpd);
+int dp_display_abort(bool abort)
+{
+	struct dp_display_private *dp;
+
+	if (!g_dp_display_real)
+		return -EINVAL;
+
+	dp = container_of(g_dp_display_real, struct dp_display_private, dp_display);
+
+	if (abort) {
+		/* cancel any pending request */
+		atomic_set(&dp->aborted, 1);
+		dp->ctrl->abort(dp->ctrl);
+		dp->aux->abort(dp->aux);
+	} else {
+		atomic_set(&dp->aborted, 0);
+	}
+
+	return 0;
+}
+
+int dp_display_get_connect(void)
+{
+	struct dp_display_private *dp;
+
+	if (!g_dp_display_real)
+		return false;
+	dp = container_of(g_dp_display_real, struct dp_display_private, dp_display);
+
+	if (!dp->usbpd)
+		return false;
+
+	return dp_get_usbpd_connect_status(dp->usbpd);
+}
+#endif /* VENDOR_EDIT */
+
 static int dp_display_usbpd_attention_cb(struct device *dev)
 {
 	struct dp_display_private *dp;
@@ -796,7 +880,6 @@ static int dp_display_usbpd_attention_cb(struct device *dev)
 
 	if (dp->usbpd->hpd_irq && dp->usbpd->hpd_high &&
 	    dp->power_on) {
-		dp->link->process_request(dp->link);
 		queue_work(dp->wq, &dp->attention_work);
 	} else if (dp->usbpd->hpd_high) {
 		queue_delayed_work(dp->wq, &dp->connect_work, 0);

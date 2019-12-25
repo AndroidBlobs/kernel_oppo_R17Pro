@@ -1076,6 +1076,12 @@ static void _sde_plane_setup_scaler3(struct sde_plane *psde,
 		&& (src_w == dst_w))
 		return;
 
+	SDE_DEBUG_PLANE(psde,
+		"setting bilinear: src:%dx%d dst:%dx%d chroma:%dx%d fmt:%x\n",
+			src_w, src_h, dst_w, dst_h,
+			chroma_subsmpl_v, chroma_subsmpl_h,
+			fmt->base.pixel_format);
+
 	scale_cfg->dst_width = dst_w;
 	scale_cfg->dst_height = dst_h;
 	scale_cfg->y_rgb_filter_cfg = SDE_SCALE_BIL;
@@ -2801,6 +2807,21 @@ void sde_plane_clear_multirect(const struct drm_plane_state *drm_state)
 	pstate->multirect_mode = SDE_SSPP_MULTIRECT_NONE;
 }
 
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.Service.Feature,2018/06/05,for OnScreenFingerprint feature temp modify*/
+int sde_plane_check_fingerprint_layer(const struct drm_plane_state *drm_state)
+{
+	struct sde_plane_state *pstate;
+
+	if (!drm_state)
+		return 0;
+
+	pstate = to_sde_plane_state(drm_state);
+
+	return sde_plane_get_property(pstate, PLANE_PROP_CUSTOM);
+}
+#endif
+
 /**
  * multi_rect validate API allows to validate only R0 and R1 RECT
  * passing for each plane. Client of this API must not pass multiple
@@ -3524,17 +3545,16 @@ static int sde_plane_sspp_atomic_check(struct drm_plane *plane,
 		ret = -EINVAL;
 
 	/* decimation validation */
-	} else if (deci_w || deci_h) {
-		if ((deci_w > psde->pipe_sblk->maxhdeciexp) ||
-			(deci_h > psde->pipe_sblk->maxvdeciexp)) {
-			SDE_ERROR_PLANE(psde,
-					"too much decimation requested\n");
-			ret = -EINVAL;
-		} else if (fmt->fetch_mode != SDE_FETCH_LINEAR) {
-			SDE_ERROR_PLANE(psde,
-					"decimation requires linear fetch\n");
-			ret = -EINVAL;
-		}
+	} else if ((deci_w || deci_h)
+			&& ((deci_w > psde->pipe_sblk->maxhdeciexp)
+				|| (deci_h > psde->pipe_sblk->maxvdeciexp))) {
+		SDE_ERROR_PLANE(psde, "too much decimation requested\n");
+		ret = -EINVAL;
+
+	} else if ((deci_w || deci_h)
+			&& (fmt->fetch_mode != SDE_FETCH_LINEAR)) {
+		SDE_ERROR_PLANE(psde, "decimation requires linear fetch\n");
+		ret = -EINVAL;
 
 	} else if (!(psde->features & SDE_SSPP_SCALER) &&
 		((src.w != dst.w) || (src.h != dst.h))) {
@@ -3775,6 +3795,10 @@ static int sde_plane_sspp_atomic_update(struct drm_plane *plane,
 		case PLANE_PROP_ALPHA:
 		case PLANE_PROP_INPUT_FENCE:
 		case PLANE_PROP_BLEND_OP:
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Feature,2018-07-06 support custom property */
+		case PLANE_PROP_CUSTOM:
+#endif /* VENDOR_EDIT */
 			/* no special action required */
 			break;
 		case PLANE_PROP_FB_TRANSLATION_MODE:
@@ -3857,6 +3881,8 @@ static int sde_plane_sspp_atomic_update(struct drm_plane *plane,
 				(char *)&fmt->base.pixel_format,
 				SDE_FORMAT_IS_UBWC(fmt));
 
+#ifndef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.Service.Feature,2018/06/05,for OnScreenFingerprint feature, temp modify*/
 		if (sde_plane_get_property(pstate, PLANE_PROP_SRC_CONFIG) &
 			BIT(SDE_DRM_DEINTERLACE)) {
 			SDE_DEBUG_PLANE(psde, "deinterlace\n");
@@ -3866,6 +3892,7 @@ static int sde_plane_sspp_atomic_update(struct drm_plane *plane,
 			src.y  = DIV_ROUND_UP(src.y, 2);
 			src.y &= ~0x1;
 		}
+#endif
 
 		/*
 		 * adjust layer mixer position of the sspp in the presence
@@ -4223,6 +4250,12 @@ static void _sde_plane_install_properties(struct drm_plane *plane,
 
 	msm_property_install_range(&psde->property_info, "zpos",
 		0x0, 0, zpos_max, zpos_def, PLANE_PROP_ZPOS);
+
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Feature,2018-07-06 support custom propertys */
+	msm_property_install_range(&psde->property_info,"PLANE_CUST",
+		0x0, 0, INT_MAX, 0, PLANE_PROP_CUSTOM);
+#endif
 
 	msm_property_install_range(&psde->property_info, "alpha",
 		0x0, 0, 255, 255, PLANE_PROP_ALPHA);

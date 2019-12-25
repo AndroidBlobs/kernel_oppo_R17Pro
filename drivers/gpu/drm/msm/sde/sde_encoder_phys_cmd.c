@@ -455,6 +455,12 @@ static int _sde_encoder_phys_cmd_handle_ppdone_timeout(
 	if (!phys_enc || !phys_enc->hw_pp || !phys_enc->hw_ctl)
 		return -EINVAL;
 
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.Lcd.Stability, 2018-05-24,avoid recursion handle*/
+	if (cmd_enc->pp_timeout_report_cnt >= PP_TIMEOUT_MAX_TRIALS)
+		return -EFAULT;
+#endif
+
 	cmd_enc->pp_timeout_report_cnt++;
 
 	if (sde_encoder_phys_cmd_is_master(phys_enc)) {
@@ -481,7 +487,12 @@ static int _sde_encoder_phys_cmd_handle_ppdone_timeout(
 		cmd_enc->pp_timeout_report_cnt = PP_TIMEOUT_MAX_TRIALS;
 		frame_event |= SDE_ENCODER_FRAME_EVENT_PANEL_DEAD;
 
+#ifndef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.Lcd.Stability, 2018-05-24,add for sove crash issue when esd testing, we think no need to crash here*/
 		SDE_DBG_DUMP("panic");
+#else /*VENDOR_EDIT*/
+		SDE_DBG_DUMP("all", "dbg_bus", "vbif_dbg_bus");
+#endif
 	} else if (cmd_enc->pp_timeout_report_cnt == 1) {
 		/* to avoid flooding, only log first time, and "dead" time */
 		SDE_ERROR_CMDENC(cmd_enc,
